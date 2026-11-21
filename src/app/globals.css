@@ -1,0 +1,156 @@
+@import "tailwindcss";
+
+/* Tema: escuro por padrão (classe "escuro" no <html>, guardada em cookie). O modo escuro funciona trocando
+   as variáveis de cor do Tailwind, então todas as telas mudam sem precisar de "dark:" em cada classe. */
+@custom-variant dark (&:where(.escuro, .escuro *));
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --color-marca-50: #f5f3ff;
+  --color-marca-100: #ede9fe;
+  --color-marca-500: #8b5cf6;
+  --color-marca-600: #7c3aed;
+  --color-marca-700: #6d28d9;
+  --color-destaque-500: #d946ef;
+  --color-destaque-600: #c026d3;
+  --color-superficie: #ffffff;
+  --color-fundo: #f6f7fb;
+}
+
+html.escuro {
+  color-scheme: dark;
+  --color-fundo: #080a14;
+  --color-superficie: #11142a;
+
+  --color-slate-50: #0d1022;
+  --color-slate-100: #1a1e38;
+  --color-slate-200: #262b4a;
+  --color-slate-300: #363c62;
+  --color-slate-400: #6d7499;
+  --color-slate-500: #8f96b8;
+  --color-slate-600: #aab0cc;
+  --color-slate-700: #c7cbe1;
+  --color-slate-800: #dfe2f1;
+  --color-slate-900: #f3f4fb;
+
+  --color-zinc-100: #1c1c2a;
+  --color-zinc-500: #8b8ba3;
+  --color-zinc-600: #b0b0c4;
+
+  --color-marca-50: rgb(139 92 246 / 0.14);
+  --color-marca-100: rgb(139 92 246 / 0.28);
+  --color-marca-500: #a78bfa;
+  --color-marca-600: #a78bfa;
+  --color-marca-700: #c4b5fd;
+
+  /* Fundos claros viram tons translúcidos; textos escuros viram claros. */
+  --color-rose-50: rgb(244 63 94 / 0.12);
+  --color-rose-100: rgb(244 63 94 / 0.18);
+  --color-rose-200: rgb(244 63 94 / 0.3);
+  --color-rose-300: rgb(244 63 94 / 0.45);
+  --color-rose-600: #fb7185;
+  --color-rose-700: #fda4af;
+  --color-rose-800: #fda4af;
+  --color-rose-900: #fecdd3;
+
+  --color-emerald-50: rgb(16 185 129 / 0.12);
+  --color-emerald-100: rgb(16 185 129 / 0.18);
+  --color-emerald-600: #34d399;
+  --color-emerald-700: #6ee7b7;
+  --color-emerald-800: #6ee7b7;
+
+  --color-amber-50: rgb(245 158 11 / 0.12);
+  --color-amber-100: rgb(245 158 11 / 0.18);
+  --color-amber-200: rgb(245 158 11 / 0.3);
+  --color-amber-300: rgb(245 158 11 / 0.45);
+  --color-amber-700: #fcd34d;
+  --color-amber-800: #fcd34d;
+  --color-amber-900: #fde68a;
+
+  --color-sky-100: rgb(14 165 233 / 0.18);
+  --color-sky-800: #7dd3fc;
+  --color-orange-100: rgb(249 115 22 / 0.18);
+  --color-orange-800: #fdba74;
+  --color-violet-100: rgb(139 92 246 / 0.2);
+  --color-violet-800: #c4b5fd;
+  --color-indigo-100: rgb(99 102 241 / 0.2);
+  --color-indigo-800: #a5b4fc;
+}
+
+@layer base {
+  body {
+    @apply min-h-screen bg-fundo text-slate-900 antialiased;
+    background-image:
+      radial-gradient(60rem 30rem at 0% -10%, rgb(139 92 246 / 0.12), transparent 60%),
+      radial-gradient(50rem 30rem at 100% 0%, rgb(217 70 239 / 0.08), transparent 60%);
+    background-attachment: fixed;
+  }
+  html.escuro body {
+    background-image:
+      radial-gradient(60rem 30rem at 0% -10%, rgb(139 92 246 / 0.22), transparent 60%),
+      radial-gradient(50rem 30rem at 100% 0%, rgb(217 70 239 / 0.14), transparent 60%),
+      radial-gradient(40rem 30rem at 50% 110%, rgb(6 182 212 / 0.08), transparent 60%);
+  }
+  ::selection {
+    background: rgb(139 92 246 / 0.4);
+  }
+}
+
+@layer components {
+  .campo {
+    @apply w-full rounded-lg border border-slate-300 bg-superficie px-3 py-2 text-sm outline-none transition focus:border-marca-500 focus:ring-2 focus:ring-marca-100 disabled:bg-slate-100;
+  }
+
+  .rotulo {
+    @apply mb-1 block text-xs font-medium text-slate-600;
+  }
+
+  .ajuda {
+    @apply mt-1 text-xs text-slate-500;
+  }
+
+  .botao {
+    @apply inline-flex items-center justify-center gap-1.5 rounded-lg bg-linear-to-r from-violet-600 via-fuchsia-600 to-pink-500 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-fuchsia-600/25 transition hover:brightness-110 hover:shadow-fuchsia-500/40 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none;
+  }
+
+  .botao-sec {
+    @apply inline-flex items-center justify-center gap-1.5 rounded-lg border border-slate-300 bg-superficie px-3 py-2 text-sm font-medium text-slate-700 transition hover:border-marca-500 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-50;
+  }
+
+  .botao-perigo {
+    @apply inline-flex items-center justify-center gap-1.5 rounded-lg bg-linear-to-r from-rose-600 to-orange-500 px-3 py-2 text-sm font-semibold text-white shadow-lg shadow-rose-600/25 transition hover:brightness-110 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none;
+  }
+
+  .cartao {
+    @apply rounded-xl border border-slate-200 bg-superficie shadow-sm;
+  }
+
+  .selo {
+    @apply inline-block whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-medium;
+  }
+
+  .titulo-gradiente {
+    @apply bg-linear-to-r from-violet-500 via-fuchsia-500 to-pink-500 bg-clip-text text-transparent;
+  }
+
+  .tabela {
+    @apply w-full text-left text-sm;
+  }
+  .tabela th {
+    @apply border-b border-slate-200 px-3 py-2 text-xs font-medium uppercase tracking-wide text-slate-500;
+  }
+  .tabela td {
+    @apply border-b border-slate-100 px-3 py-2 align-top;
+  }
+  .tabela tbody tr {
+    @apply transition-colors hover:bg-slate-50;
+  }
+
+  .erro {
+    @apply rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700;
+  }
+
+  .sucesso {
+    @apply rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-700;
+  }
+}

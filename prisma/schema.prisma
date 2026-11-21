@@ -1,0 +1,411 @@
+// Banco local SQLite (WAL). A URL vem de DATABASE_URL, lida em prisma.config.ts.
+// Campos de "tipo" são String: os valores válidos estão em src/core/tipos.ts e são validados com Zod na entrada.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+// ───────────────────────────── Acesso ─────────────────────────────
+
+model Usuario {
+  id          String    @id @default(cuid())
+  email       String    @unique
+  nome        String
+  senhaHash   String // scrypt$N$r$p$sal$hash
+  papel       String    @default("operador") // admin | operador
+  bloqueadoEm DateTime?
+  ultimoAcesso DateTime?
+  criadoEm    DateTime  @default(now())
+  sessoes     Sessao[]
+}
+
+model Sessao {
+  id        String   @id @default(cuid())
+  tokenHash String   @unique // HMAC-SHA256(AUTH_SECRET, token): o token em si só existe no cookie
+  usuarioId String
+  usuario   Usuario  @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  expiraEm  DateTime
+  criadoEm  DateTime @default(now())
+
+  @@index([usuarioId])
+}
+
+/// Janela deslizante de rate limit compartilhada entre processos (web e worker).
+model LimiteTaxa {
+  id       Int      @id @default(autoincrement())
+  chave    String
+  criadoEm DateTime @default(now())
+
+  @@index([chave, criadoEm])
+}
+
+model ChaveIdempotencia {
+  chave    String   @id
+  status   Int      @default(0)
+  corpo    String?
+  criadoEm DateTime @default(now())
+}
+
+model Auditoria {
+  id        Int      @id @default(autoincrement())
+  usuarioId String?
+  acao      String
+  alvo      String?
+  detalhe   String? // JSON, já sem segredos
+  criadoEm  DateTime @default(now())
+
+  @@index([criadoEm])
+}
+
+/// Credenciais cadastradas pelo painel: AES-256-GCM com APP_ENCRYPTION_KEY. Nunca voltam inteiras para a tela.
+model Segredo {
+  chave        String   @id
+  cifrado      String // base64(iv | tag | dados)
+  final        String // últimos 4 caracteres, para identificar
+  atualizadoEm DateTime @updatedAt
+  atualizadoPor String?
+}
+
+model Config {
+  chave String @id
+  valor String // JSON
+}
+
+// ───────────────────────────── Prospecção ─────────────────────────────
+
+model Busca {
+  id           String      @id @default(cuid())
+  nicho        String
+  cidade       String
+  lat          Float?
+  lon          Float?
+  bbox         String? // JSON [sul, norte, oeste, leste]
+  fontes       String // JSON string[]
+  status       String      @default("pendente") // pendente | descobrindo | processando | concluida | falhou | cancelada
+  erro         String?
+  encontradas  Int         @default(0)
+  novas        Int         @default(0)
+  criadoPorId  String?
+  criadoEm     DateTime    @default(now())
+  iniciadoEm   DateTime?
+  concluidoEm  DateTime?
+  atualizadoEm DateTime    @updatedAt
+  leads        BuscaLead[]
+
+  @@index([status])
+}
+
+model Lead {
+  id                 String    @id @default(cuid())
+  nome               String
+  nomeNormalizado    String
+  categoria          String?
+  segmento           String? // nicho da busca que o encontrou primeiro
+  endereco           String?
+  cidade             String?
+  uf                 String?
+  lat                Float?
+  lon                Float?
+  telefone           String?
+  telefoneE164       String?
+  ehCelular          Boolean   @default(false)
+  whatsappE164       String? // só quando identificado (link wa.me no site, ou celular confirmado pela conversa)
+  emails             String? // separados por vírgula
+  website            String?
+  dominio            String?
+  instagram          String?
+  facebook           String?
+  linkedin           String?
+  outrasRedes        String? // JSON { tiktok, youtube, ... }
+  /// sem_site_identificado | so_rede_social | site_fora_do_ar | com_site
+  presenca           String    @default("sem_site_identificado")
+  /// baixa | media | alta: quanto confiamos na presença (ex.: "sem site" vindo de uma só fonte = baixa)
+  presencaConfianca  String    @default("baixa")
+  siteAvaliacao      String? // JSON AvaliacaoSite
+  siteAvaliadoEm     DateTime?
+  pontuacaoRegra     Int       @default(0)
+  score              Int? // score final (IA, ou regra quando a IA não está disponível)
+  /// pendente | analisando | qualificado | desqualificado | erro
+  qualificacaoStatus String    @default("pendente")
+  qualificacao       String? // JSON Qualificacao
+  qualificadoEm      DateTime?
+  etapaId            String?
+  etapa              EtapaCrm? @relation(fields: [etapaId], references: [id], onDelete: SetNull)
+  responsavelId      String?
+  notas              String?
+  /// sem_autorizacao | autorizado | opt_out
+  contatoStatus      String    @default("sem_autorizacao")
+  naoContatar        Boolean   @default(false)
+  automacaoPausada   Boolean   @default(false)
+  transferidoEm      DateTime?
+  motivoTransferencia String?
+  ultimaInteracaoEm  DateTime?
+  coletadoEm         DateTime  @default(now())
+  criadoEm           DateTime  @default(now())
+  atualizadoEm       DateTime  @updatedAt
+  revisao            Int       @default(0) // concorrência otimista no CRM
+
+  buscas        BuscaLead[]
+  origens       LeadOrigem[]
+  dados         DadoOrigem[]
+  interacoes    InteracaoLead[]
+  consentimentos Consentimento[]
+  conversa      Conversa?
+
+  @@index([telefoneE164])
+  @@index([dominio])
+  @@index([nomeNormalizado, cidade])
+  @@index([etapaId])
+  @@index([score])
+}
+
+model BuscaLead {
+  buscaId  String
+  leadId   String
+  novo     Boolean  @default(false) // o lead foi criado por esta busca
+  criadoEm DateTime @default(now())
+  busca    Busca    @relation(fields: [buscaId], references: [id], onDelete: Cascade)
+  lead     Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+
+  @@id([buscaId, leadId])
+  @@index([leadId])
+}
+
+/// Identificador do lead em cada fonte (osm:node/123, gmaps:ChIJ...). Base da deduplicação.
+model LeadOrigem {
+  id         String   @id @default(cuid())
+  leadId     String
+  lead       Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  fonte      String
+  idExterno  String
+  url        String?
+  coletadoEm DateTime @default(now())
+
+  @@unique([fonte, idExterno])
+  @@index([leadId])
+}
+
+/// Proveniência de cada informação: de onde veio cada telefone, e-mail, site...
+model DadoOrigem {
+  id         String   @id @default(cuid())
+  leadId     String
+  lead       Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  campo      String
+  valor      String
+  fonte      String // osm | gmaps | places | site
+  url        String?
+  coletadoEm DateTime @default(now())
+
+  @@unique([leadId, campo, valor, fonte])
+}
+
+model EtapaCrm {
+  id      String  @id @default(cuid())
+  chave   String  @unique // usada pelas automações (ex.: "intervencao_humana")
+  nome    String
+  ordem   Int
+  cor     String  @default("slate")
+  sistema Boolean @default(false) // etapas usadas pelas automações não podem ser apagadas
+  leads   Lead[]
+}
+
+model InteracaoLead {
+  id        String   @id @default(cuid())
+  leadId    String
+  lead      Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  tipo      String // etapa | nota | consentimento | opt_out | transferencia | agente | contato | qualificacao | sistema
+  descricao String
+  usuarioId String?
+  criadoEm  DateTime @default(now())
+
+  @@index([leadId, criadoEm])
+}
+
+model Consentimento {
+  id             String   @id @default(cuid())
+  leadId         String
+  lead           Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  telefoneE164   String
+  tipo           String // opt_in | opt_out
+  origem         String // como a autorização foi obtida (texto livre obrigatório)
+  baseLegal      String? // consentimento | legitimo_interesse | ...
+  evidencia      String?
+  registradoPor  String? // usuário, ou "cliente" quando veio da conversa
+  criadoEm       DateTime @default(now())
+
+  @@index([leadId, criadoEm])
+}
+
+/// Telefones que pediram para não receber mensagens. Fica mesmo após apagar o lead (HMAC, não o número).
+model Supressao {
+  telefoneHash String   @id
+  motivo       String
+  criadoEm     DateTime @default(now())
+}
+
+// ───────────────────────────── Conversas ─────────────────────────────
+
+model Conversa {
+  id              String     @id @default(cuid())
+  leadId          String?    @unique
+  lead            Lead?      @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  telefoneE164    String     @unique
+  /// ativa | transferida | encerrada
+  status          String     @default("ativa")
+  agenteAtivo     Boolean    @default(true)
+  etapaNegociacao String     @default("abertura") // abertura | descoberta | apresentacao | negociacao | formalizacao
+  objecoes        String? // JSON string[]
+  resumo          String?
+  ultimaEntradaEm DateTime? // abre a janela de 24 h da Meta
+  ultimaSaidaEm   DateTime?
+  saidasSemResposta Int      @default(0)
+  criadoEm        DateTime   @default(now())
+  atualizadoEm    DateTime   @updatedAt
+  mensagens       Mensagem[]
+}
+
+model Mensagem {
+  id           String    @id @default(cuid())
+  conversaId   String
+  conversa     Conversa  @relation(fields: [conversaId], references: [id], onDelete: Cascade)
+  direcao      String // entrada | saida
+  autor        String // cliente | agente | humano | sistema
+  tipo         String    @default("texto") // texto | template
+  conteudo     String
+  templateNome String?
+  waMessageId  String?   @unique
+  /// pendente | enviada | entregue | lida | falhou | recebida | bloqueada
+  status       String    @default("pendente")
+  erro         String?
+  criadoEm     DateTime  @default(now())
+  statusEm     DateTime?
+
+  @@index([conversaId, criadoEm])
+}
+
+model WebhookEvento {
+  id          String    @id @default(cuid())
+  provedor    String
+  idExterno   String
+  payload     String
+  processadoEm DateTime?
+  erro        String?
+  criadoEm    DateTime  @default(now())
+
+  @@unique([provedor, idExterno])
+}
+
+model Notificacao {
+  id       String    @id @default(cuid())
+  tipo     String // transferencia | limite_consumo | erro | info
+  titulo   String
+  mensagem String
+  leadId   String?
+  lidaEm   DateTime?
+  criadoEm DateTime  @default(now())
+
+  @@index([lidaEm])
+}
+
+// ───────────────────────────── IA e comercial ─────────────────────────────
+
+model Conhecimento {
+  id           String   @id @default(cuid())
+  categoria    String
+  titulo       String
+  conteudo     String
+  tags         String? // separadas por vírgula
+  ativo        Boolean  @default(true)
+  embedding    String? // JSON number[], quando o provedor de IA gera embeddings
+  embeddingModelo String?
+  usos         Int      @default(0)
+  criadoEm     DateTime @default(now())
+  atualizadoEm DateTime @updatedAt
+}
+
+model Servico {
+  id             String   @id @default(cuid())
+  nome           String
+  descricao      String
+  precoCentavos  Int
+  prazoDias      Int
+  condicoes      String?
+  descontoMaxPct Int      @default(0)
+  ativo          Boolean  @default(true)
+  ordem          Int      @default(0)
+  criadoEm       DateTime @default(now())
+  atualizadoEm   DateTime @updatedAt
+}
+
+/// Custo de cada operação paga (IA, WhatsApp). "estimado" = calculado pela tabela de preços, não cobrado de fato.
+model RegistroCusto {
+  id            String   @id @default(cuid())
+  categoria     String // ia | whatsapp | descoberta
+  provedor      String
+  modelo        String?
+  operacao      String // qualificacao | agente | embedding | mensagem_template | ...
+  tokensEntrada Int?
+  tokensSaida   Int?
+  quantidade    Int      @default(1)
+  custoUsd      Float?
+  estimado      Boolean  @default(true)
+  sucesso       Boolean  @default(true)
+  erro          String?
+  latenciaMs    Int?
+  buscaId       String?
+  leadId        String?
+  conversaId    String?
+  criadoEm      DateTime @default(now())
+
+  @@index([criadoEm])
+  @@index([buscaId])
+  @@index([leadId])
+}
+
+// ───────────────────────────── Fila, eventos e logs ─────────────────────────────
+
+model Job {
+  id             String    @id @default(cuid())
+  tipo           String
+  payload        String // JSON
+  /// pendente | rodando | ok | falhou (sem mais tentativas) | cancelado
+  status         String    @default("pendente")
+  tentativas     Int       @default(0)
+  maxTentativas  Int       @default(3)
+  executarApos   DateTime  @default(now())
+  travadoAte     DateTime?
+  erro           String?
+  chave          String?   @unique // idempotência: o mesmo trabalho não entra duas vezes
+  buscaId        String?
+  criadoEm       DateTime  @default(now())
+  atualizadoEm   DateTime  @updatedAt
+
+  @@index([status, executarApos])
+  @@index([buscaId, status])
+}
+
+/// Eventos do SSE. Gravados só depois que a mudança foi persistida; o id crescente permite retomar após desconexão.
+model Evento {
+  id       Int      @id @default(autoincrement())
+  tipo     String
+  payload  String
+  criadoEm DateTime @default(now())
+}
+
+model LogOperacao {
+  id       Int      @id @default(autoincrement())
+  nivel    String // info | aviso | erro
+  etapa    String // descoberta | crawler | qualificacao | agente | whatsapp | worker ...
+  mensagem String
+  buscaId  String?
+  leadId   String?
+  criadoEm DateTime @default(now())
+
+  @@index([buscaId, nivel])
+  @@index([criadoEm])
+}
