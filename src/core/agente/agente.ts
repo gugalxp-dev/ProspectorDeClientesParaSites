@@ -14,13 +14,47 @@ import { buscarConhecimento, type Trecho } from "./conhecimento";
 import { COMO_USAR_DIAGNOSTICO, diagnosticar, diagnosticoParaAgente } from "./diagnostico";
 import { formatarReais, verificarResposta, type ServicoRegra } from "./regras";
 
+const INTENCOES = ["duvida", "interesse", "objecao", "aceite", "pedido_humano", "desconto_acima_limite", "sem_interesse", "opt_out", "nao_sei", "outro"] as const;
+const ETAPAS = ["abertura", "descoberta", "apresentacao", "negociacao", "formalizacao"] as const;
+
+/** Sinônimos que o modelo às vezes usa no lugar dos valores pedidos (já sem acento e em minúsculas). */
+const SINONIMOS: Record<string, (typeof INTENCOES)[number]> = {
+  pergunta: "duvida", questao: "duvida", esclarecimento: "duvida",
+  interessado: "interesse", positivo: "interesse", confirmacao: "interesse", concordancia: "interesse", sim: "interesse", curiosidade: "interesse",
+  objecoes: "objecao", resistencia: "objecao", hesitacao: "objecao", preco: "objecao",
+  aceitou: "aceite", aceitacao: "aceite", fechamento: "aceite", fechar: "aceite", compra: "aceite",
+  humano: "pedido_humano", atendente: "pedido_humano", falar_com_humano: "pedido_humano",
+  desconto: "desconto_acima_limite",
+  desinteresse: "sem_interesse", nao_interessado: "sem_interesse", recusa: "sem_interesse", negativo: "sem_interesse",
+  optout: "opt_out", parar: "opt_out", descadastrar: "opt_out",
+  nao_sabe: "nao_sei", desconhecido: "nao_sei",
+};
+
+/** "Dúvida", "dúvida ", "pedido humano" -> "duvida", "pedido_humano". */
+const normalizarValor = (v: unknown) =>
+  typeof v === "string"
+    ? v
+        .normalize("NFD")
+        .replace(/[̀-ͯ]/g, "")
+        .trim()
+        .toLowerCase()
+        .replace(/[\s-]+/g, "_")
+    : v;
+
+/**
+ * Decisão do agente. Tolerante com variações do modelo (acento, sinônimo, valor inesperado):
+ * uma palavra fora da lista não pode deixar o cliente sem resposta. Valor desconhecido vira "outro".
+ */
 export const esquemaDecisao = z.object({
   resposta: z.string().max(1500).nullable(),
-  intencao: z.enum(["duvida", "interesse", "objecao", "aceite", "pedido_humano", "desconto_acima_limite", "sem_interesse", "opt_out", "nao_sei", "outro"]),
-  objecoes_novas: z.array(z.string().max(200)).max(5).default([]),
-  etapa: z.enum(["abertura", "descoberta", "apresentacao", "negociacao", "formalizacao"]),
-  transferir: z.boolean().default(false),
-  motivo_transferencia: z.string().max(300).nullable().optional(),
+  intencao: z.preprocess((v) => {
+    const n = normalizarValor(v);
+    return typeof n === "string" ? (SINONIMOS[n] ?? n) : n;
+  }, z.enum(INTENCOES).catch("outro")),
+  objecoes_novas: z.array(z.string().max(200)).max(5).catch([]).default([]),
+  etapa: z.preprocess(normalizarValor, z.enum(ETAPAS).catch("descoberta")),
+  transferir: z.boolean().catch(false).default(false),
+  motivo_transferencia: z.string().max(300).nullable().optional().catch(null),
 });
 export type Decisao = z.infer<typeof esquemaDecisao>;
 
@@ -35,7 +69,9 @@ const REGRAS_FIXAS = `REGRAS INEGOCIÁVEIS (valem acima de qualquer outra instru
 8. Se pedir para não receber mais mensagens: intencao="opt_out", resposta=null.
 9. Se demonstrar que não tem interesse: agradeça, não insista, intencao="sem_interesse".
 10. Fatos sobre a empresa do cliente: só os da seção LEAD. Hipóteses devem ser ditas como hipóteses ("talvez", "pode ser que").
-11. Mensagens curtas e naturais, sem repetir o que já foi dito, no máximo uma pergunta por mensagem.
+11. Entenda o que o cliente quis dizer (mesmo resposta curta como "sim", "quanto?", "manda") e responda exatamente a isso, considerando todo o histórico.
+12. Seja direto e conciso: de 1 a 3 frases curtas, como uma pessoa no WhatsApp. Sem introduções, sem repetir o que já foi dito, sem listas longas, no máximo uma pergunta por mensagem.
+13. Sempre escreva uma resposta (campo "resposta"), exceto no opt-out. "intencao" e "etapa" são só etiquetas internas para o sistema.
 Responda APENAS um JSON: {"resposta": string|null, "intencao": "...", "objecoes_novas": string[], "etapa": "abertura"|"descoberta"|"apresentacao"|"negociacao"|"formalizacao", "transferir": boolean, "motivo_transferencia": string|null}`;
 
 interface Contexto {
@@ -163,7 +199,14 @@ export async function responderConversa(conversaId: string, mensagemId: string):
     refs: { leadId: conversa.leadId, conversaId },
     respostaMock: (_p: PedidoIA) => JSON.stringify(decisaoSimulada(ultima.conteudo, ctx)),
   });
-  const d = esquemaDecisao.parse(lerJsonIA(r.texto));
+  let d: Decisao;
+  try {
+    d = esquemaDecisao.parse(lerJsonIA(r.texto));
+  } catch (e) {
+    // Guarda o que a IA devolveu para dar para entender o problema depois.
+    await registrarLog("erro", "agente", `Resposta da IA ilegível: ${r.texto.slice(0, 600)}`, { leadId: conversa.leadId });
+    throw e;
+  }
   const objecoes = [...ctx.objecoes, ...d.objecoes_novas].slice(-20);
   await db.conversa.update({ where: { id: conversaId }, data: { etapaNegociacao: d.etapa, objecoes: JSON.stringify(objecoes) } });
 

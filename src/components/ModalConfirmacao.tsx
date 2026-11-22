@@ -23,7 +23,9 @@ export function ModalConfirmacao(p: {
   const cancelar = useRef<HTMLButtonElement>(null);
   // Vai direto no <body>: dentro de tabela/flex o modal herdaria estilos (ex.: nowrap) e o texto vazaria.
   const [montado, setMontado] = useState(false);
-  useEffect(() => setMontado(true), []);
+  useEffect(() => {
+    setMontado(true);
+  }, []);
 
   useEffect(() => {
     const d = ref.current;

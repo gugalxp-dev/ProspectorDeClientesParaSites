@@ -42,7 +42,9 @@ export function Kanban({ colunas }: { colunas: ColunaKanban[] }) {
   const [estado, setEstado] = useState(colunas);
   const [sobre, setSobre] = useState<string | null>(null);
   const [erro, setErro] = useState<string | null>(null);
-  useEffect(() => setEstado(colunas), [colunas]);
+  useEffect(() => {
+    setEstado(colunas);
+  }, [colunas]);
 
   async function mover(leadId: string, paraEtapa: string) {
     const origem = estado.find((c) => c.leads.some((l) => l.id === leadId));

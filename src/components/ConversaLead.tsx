@@ -39,7 +39,9 @@ export function ConversaLead({ leadId, conversa, simulador, podeSimularSemConver
   const [erro, setErro] = useState<string | null>(null);
   const [ocupado, setOcupado] = useState(false);
   const fim = useRef<HTMLDivElement>(null);
-  useEffect(() => fim.current?.scrollIntoView({ block: "nearest" }), [conversa?.mensagens.length]);
+  useEffect(() => {
+    fim.current?.scrollIntoView({ block: "nearest" }); // no Chrome novo devolve Promise: não pode ser o retorno do efeito
+  }, [conversa?.mensagens.length]);
 
   async function rodar(fn: () => Promise<unknown>, limpar?: () => void) {
     setOcupado(true);

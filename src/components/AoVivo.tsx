@@ -97,7 +97,9 @@ export function AtualizarAoVivo({ tipos, filtro }: { tipos: string[]; filtro?: R
 export function IndicadorConexao() {
   const e = useEstadoConexao();
   const [montado, setMontado] = useState(false);
-  useEffect(() => setMontado(true), []);
+  useEffect(() => {
+    setMontado(true);
+  }, []);
   if (!montado) return null;
   const cor = e === "conectado" ? "bg-emerald-500" : e === "reconectando" ? "bg-amber-500 animate-pulse" : "bg-slate-300";
   const texto = e === "conectado" ? "Ao vivo" : e === "reconectando" ? "Reconectando…" : "Conectando…";
