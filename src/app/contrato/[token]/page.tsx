@@ -4,7 +4,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { ShieldCheck } from "lucide-react";
 import { AceiteContrato, BotaoImprimir } from "@/components/AceiteContrato";
-import { TextoContrato } from "@/components/TextoContrato";
+import { FolhaContrato } from "@/components/TextoContrato";
 import { dataHora } from "@/components/ui";
 import { obterConfig } from "@/core/config";
 import { contratoPorToken, esquemaDadosContrato, marcarVisualizado, reais } from "@/core/contratos";
@@ -15,7 +15,8 @@ export default async function ContratoPublico({ params }: { params: Promise<{ to
   const { token } = await params;
   const c = await contratoPorToken(token);
   if (!c || !c.conteudo || c.status === "rascunho") notFound();
-  const cfg = await obterConfig("contrato");
+  const [cfg, cfgAgente] = await Promise.all([obterConfig("contrato"), obterConfig("agente")]);
+  const marca = (cfgAgente.nomeEmpresa || cfg.contratadaNome).trim();
   const dados = esquemaDadosContrato.parse(JSON.parse(c.dados));
   if (c.status !== "cancelado") await marcarVisualizado(c.id);
 
@@ -24,7 +25,7 @@ export default async function ContratoPublico({ params }: { params: Promise<{ to
       <header className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 pb-4">
         <div>
           <div className="text-sm text-slate-500">Contrato nº {c.numero}</div>
-          <div className="text-lg font-semibold text-slate-900">{cfg.contratadaNome || "Contrato de prestação de serviços"}</div>
+          <div className="text-lg font-semibold text-slate-900">{marca || "Contrato de prestação de serviços"}</div>
         </div>
         <div className="text-right">
           <div className="text-xs text-slate-500">{dados.servico}</div>
@@ -35,9 +36,7 @@ export default async function ContratoPublico({ params }: { params: Promise<{ to
 
       {c.status === "cancelado" && <p className="erro">Este contrato foi cancelado e não é mais válido.</p>}
 
-      <article className="cartao p-6 sm:p-8">
-        <TextoContrato texto={c.conteudo} />
-      </article>
+      <FolhaContrato texto={c.conteudo} cabecalho={{ logo: cfg.logo, empresa: marca, numero: c.numero }} />
 
       {c.status === "aceito" ? (
         <div className="flex items-start gap-3 rounded-lg border border-emerald-300 bg-emerald-50 p-4 text-sm text-emerald-900">

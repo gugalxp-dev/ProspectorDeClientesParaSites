@@ -9,6 +9,7 @@ import { ConversaLead } from "@/components/ConversaLead";
 import { NotasLead } from "@/components/NotasLead";
 import { Score, SeloContato, SeloPresenca, SeloQualificacao, COR_ETAPA, dataHora, usd } from "@/components/ui";
 import { dadosIniciais, esquemaDadosContrato, linkPublico } from "@/core/contratos";
+import { obterConfig } from "@/core/config";
 import { obterLeadCompleto } from "@/core/crm/leads";
 import { db } from "@/core/db";
 import type { AvaliacaoSite } from "@/core/prospeccao/avaliacaoSite";
@@ -47,12 +48,14 @@ export default async function Lead({ params, searchParams }: { params: Promise<{
   const u = await exigirUsuario(`/leads/${id}`);
   const l = await obterLeadCompleto(id);
   if (!l) notFound();
-  const [usuarios, modo, contratos, servicos, h] = await Promise.all([
+  const [usuarios, modo, contratos, servicos, h, cfgContrato, cfgAgente] = await Promise.all([
     db.usuario.findMany({ select: { id: true, nome: true }, where: { bloqueadoEm: null } }),
     modoWhatsApp(),
     db.contrato.findMany({ where: { leadId: id }, orderBy: { criadoEm: "desc" } }),
     db.servico.findMany({ where: { ativo: true }, orderBy: { ordem: "asc" }, select: { nome: true, descricao: true, precoCentavos: true, prazoDias: true } }),
     headers(),
+    obterConfig("contrato"),
+    obterConfig("agente"),
   ]);
   const origem = `${h.get("x-forwarded-proto") ?? "http"}://${h.get("host") ?? "localhost:3000"}`;
   const rascunho = contratos.find((c) => c.status === "rascunho");
@@ -224,6 +227,8 @@ export default async function Lead({ params, searchParams }: { params: Promise<{
             rascunho={dadosRascunho}
             rascunhoId={rascunho?.id ?? null}
             abrir={abrirContrato}
+            logo={cfgContrato.logo}
+            empresa={(cfgAgente.nomeEmpresa || cfgContrato.contratadaNome).trim()}
             servicos={servicos}
             temWhatsapp={!!(l.whatsappE164 || (l.ehCelular && l.telefoneE164)) && !l.naoContatar}
           />

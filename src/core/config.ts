@@ -184,6 +184,12 @@ export const esquemaLgpd = z.object({
 export const esquemaContrato = z.object({
   /** Dados da sua empresa (contratada): iguais em todos os contratos. */
   contratadaNome: z.string().max(200).default(""),
+  /** Logo no cabeçalho do contrato, como data URL (imagem embutida: abre na página do cliente sem login). */
+  logo: z
+    .string()
+    .max(400_000)
+    .refine((v) => v === "" || /^data:image\/(png|jpeg|webp|svg\+xml);base64,[A-Za-z0-9+/=]+$/.test(v), "Logo inválida: envie PNG, JPG, WEBP ou SVG.")
+    .default(""),
   contratadaDocumento: z.string().max(30).default(""),
   contratadaEndereco: z.string().max(300).default(""),
   contratadaEmail: z.string().max(200).default(""),

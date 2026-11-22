@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { FormConfig } from "@/components/admin/FormConfig";
+import { LogoContrato } from "@/components/admin/LogoContrato";
 import { Titulo, dataHora } from "@/components/ui";
 import { obterConfig } from "@/core/config";
 import { esquemaDadosContrato, reais, VARIAVEIS } from "@/core/contratos";
@@ -21,6 +22,8 @@ export default async function AdminContrato() {
         Um modelo único para todos os clientes, sem IA (não gasta token). Na página do lead você preenche só os dados essenciais, lê a prévia e envia.
         O cliente recebe um link, lê e dá o aceite eletrônico.
       </p>
+
+      <LogoContrato inicial={cfg.logo} />
 
       <FormConfig
         secao="contrato"

@@ -10,6 +10,7 @@ import { env } from "@/lib/env";
 import { obterConfig, type ConfigDe } from "./config";
 import { idEtapa } from "./crm/etapas";
 import { db } from "./db";
+import { normalizarTelefone } from "./telefone";
 import { emitir } from "./eventos";
 import { enviarMensagem, obterConversa } from "./whatsapp/conversas";
 
@@ -43,7 +44,7 @@ export function renderizar(modelo: string, numero: string, d: DadosContrato, cfg
   const v: Record<(typeof VARIAVEIS)[number], string> = {
     numero,
     data: data.toLocaleDateString("pt-BR", { day: "numeric", month: "long", year: "numeric" }),
-    contratada_nome: cfg.contratadaNome,
+    contratada_nome: cfg.contratadaNome.trim(),
     contratada_documento: cfg.contratadaDocumento,
     contratada_endereco: cfg.contratadaEndereco,
     contratada_email: cfg.contratadaEmail,
@@ -94,9 +95,13 @@ export async function dadosIniciais(leadId: string): Promise<DadosContrato> {
   const servico = await db.servico.findFirst({ where: { ativo: true }, orderBy: { ordem: "asc" } });
   return esquemaDadosContrato.parse({
     contratanteNome: l.nome,
-    contratanteEndereco: [l.endereco, l.cidade, l.uf].filter(Boolean).join(", "),
+    // Não repete cidade/UF que já estão no endereço ("..., Guarujá, Guarujá, SP").
+    contratanteEndereco: [l.endereco, ...[l.cidade, l.uf].filter((x) => x && !(l.endereco ?? "").toLowerCase().includes(x.toLowerCase()))]
+      .filter(Boolean)
+      .join(", "),
     contratanteEmail: l.emails?.split(",")[0]?.trim() ?? "",
-    contratanteTelefone: l.whatsappE164 ?? l.telefoneE164 ?? "",
+    // Formato de leitura: (13) 99636-9053.
+    contratanteTelefone: normalizarTelefone(l.whatsappE164 ?? l.telefoneE164).formatado ?? l.whatsappE164 ?? l.telefoneE164 ?? "",
     ...(servico ? { servico: servico.nome, descricaoServico: servico.descricao, valorCentavos: servico.precoCentavos, prazoDias: servico.prazoDias } : {}),
   });
 }

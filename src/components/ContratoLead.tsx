@@ -3,10 +3,11 @@
 // Contrato do lead: preencher os dados essenciais -> ver a prévia -> finalizar (congela + cria link) -> enviar pelo WhatsApp.
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Copy, Eye, FileSignature, Send, X } from "lucide-react";
 import { chamarApi } from "./api";
-import { TextoContrato } from "./TextoContrato";
+import { FolhaContrato, type CabecalhoContrato } from "./TextoContrato";
 import { dataHora } from "./ui";
 
 interface Dados {
@@ -51,13 +52,13 @@ const STATUS: Record<string, [string, string]> = {
   cancelado: ["Cancelado", "bg-zinc-200 text-zinc-600"],
 };
 
-export function ContratoLead(p: { leadId: string; contratos: ContratoResumo[]; rascunho: Dados; rascunhoId: string | null; servicos: Servico[]; temWhatsapp: boolean; abrir?: boolean }) {
+export function ContratoLead(p: { leadId: string; contratos: ContratoResumo[]; rascunho: Dados; rascunhoId: string | null; servicos: Servico[]; temWhatsapp: boolean; abrir?: boolean; logo?: string; empresa?: string }) {
   const router = useRouter();
   const [dados, setDados] = useState<Dados>(p.rascunho);
   const ativoInicial = p.contratos.some((c) => c.status !== "cancelado" && c.status !== "rascunho");
   // Veio de "Gerar contrato" (Pendências ou notificação): já abre o formulário preenchido.
   const [editando, setEditando] = useState(!!p.rascunhoId || (!!p.abrir && !ativoInicial));
-  const [previa, setPrevia] = useState<{ id: string; texto: string; pendencias: string[] } | null>(null);
+  const [previa, setPrevia] = useState<{ id: string; numero: string; texto: string; pendencias: string[] } | null>(null);
   const [ocupado, setOcupado] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
@@ -80,8 +81,8 @@ export function ContratoLead(p: { leadId: string; contratos: ContratoResumo[]; r
 
   const verPrevia = () =>
     rodar(async () => {
-      const r = await chamarApi<{ id: string; previa: string; pendencias: string[] }>("/api/contratos", { corpo: { leadId: p.leadId, dados } });
-      setPrevia({ id: r.id, texto: r.previa, pendencias: r.pendencias });
+      const r = await chamarApi<{ id: string; numero: string; previa: string; pendencias: string[] }>("/api/contratos", { corpo: { leadId: p.leadId, dados } });
+      setPrevia({ id: r.id, numero: r.numero, texto: r.previa, pendencias: r.pendencias });
     });
 
   const finalizarEEnviar = (id: string) =>
@@ -198,24 +199,79 @@ export function ContratoLead(p: { leadId: string; contratos: ContratoResumo[]; r
       )}
 
       {previa && (
-        <div className="space-y-3">
-          <div className="max-h-[60vh] overflow-y-auto rounded-md border border-slate-200 bg-white p-5">
-            <TextoContrato texto={previa.texto} />
-          </div>
-          {previa.pendencias.length > 0 && <p className="erro">Falta preencher: {previa.pendencias.join(", ")}.</p>}
-          <p className="text-xs text-slate-500">Ao finalizar, o texto fica congelado (é exatamente o que o cliente vai aceitar). Para mudar depois, cancele e gere outro.</p>
-          <div className="flex flex-wrap gap-2">
-            <button className="botao" disabled={ocupado || previa.pendencias.length > 0} onClick={() => finalizarEEnviar(previa.id)}>
-              <Send className="size-4" /> {p.temWhatsapp ? "Finalizar e enviar pelo WhatsApp" : "Finalizar e gerar link"}
-            </button>
-            <button className="botao-sec" onClick={() => setPrevia(null)}>Voltar e editar</button>
-          </div>
-        </div>
+        <PreviaTelaCheia
+          previa={previa}
+          cabecalho={{ logo: p.logo, empresa: p.empresa, numero: previa.numero }}
+          ocupado={ocupado}
+          erro={erro}
+          temWhatsapp={p.temWhatsapp}
+          aoFinalizar={() => finalizarEEnviar(previa.id)}
+          aoVoltar={() => setPrevia(null)}
+        />
       )}
 
       {aviso && <p className="break-all text-xs text-emerald-700">{aviso}</p>}
       {erro && <p className="erro">{erro}</p>}
     </section>
+  );
+}
+
+/**
+ * Prévia do contrato em tela cheia, sobre a página: o documento inteiro, exatamente como o cliente vai ver.
+ * Vai direto no <body> (fora da coluna estreita do lead). Esc volta para a edição.
+ */
+function PreviaTelaCheia(p: {
+  previa: { texto: string; pendencias: string[] };
+  cabecalho: CabecalhoContrato;
+  ocupado: boolean;
+  erro: string | null;
+  temWhatsapp: boolean;
+  aoFinalizar: () => void;
+  aoVoltar: () => void;
+}) {
+  const [montado, setMontado] = useState(false);
+  const atual = useRef(p);
+  atual.current = p;
+  useEffect(() => {
+    setMontado(true);
+    const fechar = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && !atual.current.ocupado) atual.current.aoVoltar();
+    };
+    document.addEventListener("keydown", fechar);
+    const overflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden"; // só a prévia rola
+    return () => {
+      document.removeEventListener("keydown", fechar);
+      document.body.style.overflow = overflow;
+    };
+  }, []);
+  if (!montado) return null;
+
+  const bloqueado = p.previa.pendencias.length > 0;
+  return createPortal(
+    <div role="dialog" aria-modal="true" aria-label="Prévia do contrato" className="fixed inset-0 z-50 overflow-y-auto bg-[#0b0d17]/80 backdrop-blur-sm">
+      <div className="sticky top-0 z-10 border-b border-white/10 bg-[#11142a]/95 px-4 py-3 text-sm text-[#f3f4fb] shadow-lg">
+        <div className="mx-auto flex max-w-[820px] flex-wrap items-center gap-3">
+          <div className="min-w-0 flex-1">
+            <div className="font-semibold">Prévia do contrato</div>
+            <div className="text-xs text-[#aab0cc]">É exatamente o que o cliente vai ver. Ao finalizar, o texto fica congelado.</div>
+          </div>
+          <button className="botao-sec" disabled={p.ocupado} onClick={p.aoVoltar}>Voltar e editar</button>
+          <button className="botao" disabled={p.ocupado || bloqueado} onClick={p.aoFinalizar}>
+            <Send className="size-4" /> {p.ocupado ? "Enviando..." : p.temWhatsapp ? "Finalizar e enviar pelo WhatsApp" : "Finalizar e gerar link"}
+          </button>
+        </div>
+        {(bloqueado || p.erro) && (
+          <div className="mx-auto mt-2 max-w-[820px] rounded-md bg-[#7f1d1d] px-3 py-2 text-xs text-[#fee2e2]">
+            {bloqueado ? `Falta preencher: ${p.previa.pendencias.join(", ")}.` : p.erro}
+          </div>
+        )}
+      </div>
+      <div className="px-3 py-8 sm:px-6">
+        <FolhaContrato texto={p.previa.texto} cabecalho={p.cabecalho} />
+      </div>
+    </div>,
+    document.body,
   );
 }
 
