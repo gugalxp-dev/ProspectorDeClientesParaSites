@@ -6,6 +6,7 @@
 import { hashSecret } from "@/lib/crypto";
 import { obterConfig } from "../config";
 import { registrarLog } from "../eventos";
+import { verificarWhatsApp } from "../whatsapp/cliente";
 import { motivoIgnorarNaImportacao } from "./filtro";
 import { db } from "../db";
 import { semAcento } from "../fontes/osm";
@@ -73,14 +74,21 @@ async function importarSemConcorrencia(buscaId: string, nicho: string, cidade: s
       res.ignorados++;
       continue;
     }
-    const tel = normalizarTelefone(l.telefone);
+    const telFonte = normalizarTelefone(l.telefone);
+    // Telefone vindo da busca por IA só vale se existir no WhatsApp (IA pode errar ou inventar número).
+    // Sem como verificar agora (Baileys desconectado), fica como veio e passa pelos filtros normais.
+    const conferido = l.fonte === "web" && telFonte.e164 ? await verificarWhatsApp(telFonte.e164) : null;
+    if (conferido === false) await registrarLog("info", "filtro", `${l.nome}: telefone ${telFonte.formatado ?? l.telefone} (da busca por IA) não tem WhatsApp, descartado.`, { buscaId });
+    const tel = conferido === false ? normalizarTelefone(null) : telFonte;
     const site = classificarWebsite(l.website);
     const dominio = site.presenca === "com_site" && l.website ? dominioRegistravel(hostDe(l.website)) : null;
     const nomeN = normalizarNome(l.nome);
     const cidadeLead = l.cidade?.trim() || cidade;
 
     // Nem registra quem não se enquadra (rede/franquia, sem celular e sem site para procurar um).
-    const ignorar = motivoIgnorarNaImportacao({ nome: l.nome, rede: l.rede, ehCelular: tel.ehCelular, temSite: site.presenca === "com_site" }, cfg);
+    // Fixo pode ter WhatsApp Business: com o Baileys conectado, pergunta ao próprio WhatsApp antes de descartar.
+    const waFixo = conferido === true ? tel.e164 : cfg.exigirCelular && !tel.ehCelular && tel.e164 && (await verificarWhatsApp(tel.e164)) ? tel.e164 : null;
+    const ignorar = motivoIgnorarNaImportacao({ nome: l.nome, rede: l.rede, ehCelular: tel.ehCelular || !!waFixo, temSite: site.presenca === "com_site" }, cfg);
     if (ignorar) {
       res.ignorados++;
       await registrarLog("info", "filtro", `${l.nome}: ignorado (${ignorar})`, { buscaId });
@@ -106,6 +114,7 @@ async function importarSemConcorrencia(buscaId: string, nicho: string, cidade: s
           telefone: existente.telefone ?? l.telefone ?? null,
           telefoneE164: existente.telefoneE164 ?? tel.e164,
           ehCelular: existente.ehCelular || (!existente.telefoneE164 && tel.ehCelular),
+          whatsappE164: existente.whatsappE164 ?? waFixo,
           emails: existente.emails ?? (l.emails?.length ? l.emails.join(", ") : null),
           instagram: existente.instagram ?? l.instagram ?? (redeDoSite as { instagram?: string }).instagram ?? null,
           facebook: existente.facebook ?? l.facebook ?? (redeDoSite as { facebook?: string }).facebook ?? null,
@@ -131,6 +140,7 @@ async function importarSemConcorrencia(buscaId: string, nicho: string, cidade: s
           telefone: l.telefone ?? null,
           telefoneE164: tel.e164,
           ehCelular: tel.ehCelular,
+          whatsappE164: waFixo,
           emails: l.emails?.length ? l.emails.join(", ") : null,
           website: l.website ?? null,
           dominio,

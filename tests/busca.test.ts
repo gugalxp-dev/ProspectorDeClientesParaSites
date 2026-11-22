@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
-import { atualizarProgresso, criarBusca, resumoBusca } from "../src/core/busca";
+import { atualizarProgresso, criarBusca, refazerBusca, resumoBusca } from "../src/core/busca";
+import { registrarClienteLocal, type ClienteWhatsApp } from "../src/core/whatsapp/cliente";
 import { salvarConfig } from "../src/core/config";
 import { garantirEtapas } from "../src/core/crm/etapas";
 import { db } from "../src/core/db";
@@ -122,6 +123,40 @@ describe("pesquisas", () => {
     expect(leads).toEqual([{ nome: "Banho e Tosa Amigo", qualificacaoStatus: "qualificado" }]);
     expect(await db.registroCusto.count({ where: { buscaId: b.id, operacao: "qualificacao" } })).toBe(1);
     expect((await resumoBusca(b.id))?.descartadas).toBe(2);
+  });
+
+  it("fixo com WhatsApp (verificado no Baileys) entra; fixo sem WhatsApp é ignorado", async () => {
+    await salvarConfig("prospeccao", { fontes: { fa: { ativa: true } }, crawler: { profundidade: 1, maxPaginasPorSite: 3, concorrencia: 4, atrasoPorHostMs: 250, timeoutMs: 5000, respeitarRobots: true } });
+    const comWhats = "+551333330010";
+    registrarClienteLocal({ modo: "baileys", temWhatsApp: async (e164: string) => e164 === comWhats } as unknown as ClienteWhatsApp);
+    try {
+      registrarFonte(
+        fonteFalsa("fa", () => [
+          lugar("1", "Pastelaria Com Whats", { telefone: "(13) 3333-0010" }),
+          lugar("2", "Pastelaria Sem Whats", { telefone: "(13) 3333-0020" }),
+        ]),
+      );
+      await criarBusca({ nicho: "Pastel", cidade: "Guarujá" }, null);
+      await rodarFila(200, { ignorarAtraso: true });
+      const leads = await db.lead.findMany({ select: { nome: true, whatsappE164: true } });
+      expect(leads).toEqual([{ nome: "Pastelaria Com Whats", whatsappE164: comWhats }]);
+    } finally {
+      registrarClienteLocal(null);
+    }
+  });
+
+  it("refazer pesquisa: zera o andamento, busca de novo e reaproveita as empresas sem duplicar", async () => {
+    let vez = 0;
+    registrarFonte(fonteFalsa("fa", () => (++vez === 1 ? [lugar("1", "Banho e Tosa Amigo", { telefone: "(13) 98888-0002" })] : [lugar("1", "Banho e Tosa Amigo", { telefone: "(13) 98888-0002" }), lugar("2", "Pet Novo", { telefone: "(13) 98888-0003" })])));
+    const b = await criarBusca({ nicho: "Pet shops", cidade: "Praia Grande" }, null);
+    await rodarFila(200, { ignorarAtraso: true });
+    expect((await resumoBusca(b.id))?.encontradas).toBe(1);
+    await refazerBusca(b.id);
+    expect((await db.busca.findUniqueOrThrow({ where: { id: b.id } })).status).toBe("pendente");
+    await rodarFila(200, { ignorarAtraso: true });
+    const r = await resumoBusca(b.id);
+    expect(r).toMatchObject({ status: "concluida", encontradas: 2 });
+    expect(await db.lead.count()).toBe(2);
   });
 
   it("pesquisas simultâneas mantêm resultados próprios e deduplicam empresas globalmente", async () => {

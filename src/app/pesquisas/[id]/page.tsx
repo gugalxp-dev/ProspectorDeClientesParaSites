@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { ExcluirPesquisa } from "@/components/ExcluirPesquisa";
+import { RefazerPesquisa } from "@/components/RefazerPesquisa";
 import { notFound } from "next/navigation";
 import { AtualizarAoVivo } from "@/components/AoVivo";
 import { Barra, Score, SeloPresenca, SeloQualificacao, Titulo, Vazio, dataHora, usd } from "@/components/ui";
@@ -38,7 +39,14 @@ export default async function Pesquisa({ params, searchParams }: { params: Promi
 
   return (
     <div className="space-y-6">
-      <Titulo acoes={<ExcluirPesquisa id={r.id} nome={`${r.nicho} — ${r.cidade}`} voltarPara="/pesquisas" />}>
+      <Titulo
+        acoes={
+          <div className="flex items-center gap-3">
+            {!["pendente", "descobrindo", "processando"].includes(r.status) && <RefazerPesquisa id={r.id} nome={`${r.nicho} — ${r.cidade}`} botao />}
+            <ExcluirPesquisa id={r.id} nome={`${r.nicho} — ${r.cidade}`} voltarPara="/pesquisas" />
+          </div>
+        }
+      >
         {r.nicho} — {r.cidade}
       </Titulo>
       <div className="cartao grid gap-4 p-4 sm:grid-cols-3 lg:grid-cols-7">

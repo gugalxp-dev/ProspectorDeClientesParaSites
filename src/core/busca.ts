@@ -72,6 +72,32 @@ export async function cancelarBusca(id: string): Promise<void> {
   await emitir("busca.atualizada", { id });
 }
 
+/**
+ * Refaz a mesma pesquisa (mesmo segmento e cidade) com as regras e fontes atuais.
+ * Zera andamento, contadores e log; as empresas já encontradas continuam e são reaproveitadas (sem duplicar).
+ */
+export async function refazerBusca(id: string): Promise<void> {
+  const b = await db.busca.findUniqueOrThrow({ where: { id } });
+  const cfg = await obterConfig("prospeccao");
+  const fontes = Object.entries(cfg.fontes)
+    .filter(([fid, v]) => v.ativa && fonte(fid))
+    .map(([fid]) => fid);
+  if (!fontes.length) throw new Error("Nenhuma fonte de descoberta ativa. Ative uma em Admin > Prospecção.");
+  await cancelarJobsDaBusca(id);
+  await db.job.deleteMany({ where: { buscaId: id } });
+  await db.logOperacao.deleteMany({ where: { buscaId: id } });
+  await db.busca.update({
+    where: { id },
+    data: { status: "pendente", erro: null, encontradas: 0, novas: 0, iniciadoEm: null, concluidoEm: null, fontes: JSON.stringify(fontes) },
+  });
+  const vez = Date.now();
+  for (const f of fontes) {
+    await enfileirar("busca_descobrir", { buscaId: id, fonte: f }, { chave: `descobrir:${id}:${f}:${vez}`, buscaId: id, maxTentativas: 4 });
+  }
+  await registrarLog("info", "descoberta", `Pesquisa refeita: ${b.nicho} em ${b.cidade}.`, { buscaId: id });
+  await emitir("busca.atualizada", { id });
+}
+
 /** Empresas que sairiam junto: só desta pesquisa e ainda não contatadas (ninguém mexeu nelas). */
 async function leadsSoDestaBusca(id: string): Promise<string[]> {
   const ligados = await db.buscaLead.findMany({

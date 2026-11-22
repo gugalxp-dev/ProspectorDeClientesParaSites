@@ -182,6 +182,11 @@ const clienteLocal: ClienteWhatsApp = {
   async estado() {
     return { ok: estado.conectado, detalhe: estado.detalhe };
   },
+  async temWhatsApp(paraE164) {
+    if (!sock || !estado.conectado) return null;
+    const [r] = (await sock.onWhatsApp(paraE164.replace(/D/g, ""))) ?? [];
+    return !!r?.exists;
+  },
 };
 
 // ───────────── Ponte HTTP (só 127.0.0.1) ─────────────

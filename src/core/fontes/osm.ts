@@ -14,10 +14,14 @@ const SEGMENTOS: Array<{ termos: string[]; tags: string[] }> = [
   { termos: ["veterinari", "clinica veterinaria"], tags: ['["amenity"="veterinary"]'] },
   { termos: ["salao de beleza", "salao", "cabeleireir", "cabelo"], tags: ['["shop"="hairdresser"]', '["shop"="beauty"]'] },
   { termos: ["barbearia", "barbeiro"], tags: ['["shop"="hairdresser"]["male"="yes"]', '["shop"="barber"]', '["hairdresser"="barber"]'] },
-  { termos: ["manicure", "estetica", "clinica de estetica", "depilacao", "sobrancelha"], tags: ['["shop"="beauty"]', '["amenity"="clinic"]["healthcare:speciality"~"dermatology|aesthetic"]'] },
+  { termos: ["manicure", "estetica", "clinica de estetica", "depilacao", "sobrancelha", "unha", "cilios", "spa"], tags: ['["shop"="beauty"]', '["shop"="cosmetics"]', '["leisure"="spa"]', '["amenity"="clinic"]["healthcare:speciality"~"dermatology|aesthetic"]'] },
   { termos: ["restaurante", "restaurant"], tags: ['["amenity"="restaurant"]'] },
   { termos: ["pizzaria", "pizza"], tags: ['["amenity"="restaurant"]["cuisine"~"pizza"]', '["amenity"="fast_food"]["cuisine"~"pizza"]'] },
-  { termos: ["lanchonete", "hamburgueria", "hamburguer", "fast food"], tags: ['["amenity"="fast_food"]'] },
+  { termos: ["lanchonete", "hamburgueria", "hamburguer", "fast food", "lanche"], tags: ['["amenity"="fast_food"]'] },
+  { termos: ["pastel", "pastelaria", "salgado", "salgaderia", "coxinha"], tags: ['["amenity"="fast_food"]["cuisine"~"pastel|brazilian|savory|snack",i]', '["shop"="pastry"]'] },
+  { termos: ["marmita", "marmitaria", "self service", "comida caseira", "quentinha"], tags: ['["amenity"="restaurant"]["cuisine"~"brazilian|regional|buffet",i]'] },
+  { termos: ["japones", "sushi", "temaki"], tags: ['["amenity"="restaurant"]["cuisine"~"japanese|sushi",i]'] },
+  { termos: ["churrascaria", "churrasco", "espetinho"], tags: ['["amenity"="restaurant"]["cuisine"~"barbecue|steak",i]'] },
   { termos: ["padaria", "panificadora"], tags: ['["shop"="bakery"]'] },
   { termos: ["confeitaria", "doceria", "doces", "bolos"], tags: ['["shop"="confectionery"]', '["shop"="pastry"]'] },
   { termos: ["cafeteria", "cafe"], tags: ['["amenity"="cafe"]'] },
@@ -28,7 +32,9 @@ const SEGMENTOS: Array<{ termos: string[]; tags: string[] }> = [
   { termos: ["hortifruti", "sacolao", "quitanda"], tags: ['["shop"="greengrocer"]'] },
   { termos: ["farmacia", "drogaria"], tags: ['["amenity"="pharmacy"]'] },
   { termos: ["dentista", "odontolog", "clinica odontologica"], tags: ['["amenity"="dentist"]', '["healthcare"="dentist"]'] },
-  { termos: ["clinica medica", "clinica", "consultorio medico"], tags: ['["amenity"="clinic"]', '["amenity"="doctors"]'] },
+  { termos: ["clinica medica", "clinica", "consultorio medico", "medico"], tags: ['["amenity"="clinic"]', '["amenity"="doctors"]'] },
+  { termos: ["saude"], tags: ['["amenity"="clinic"]', '["amenity"="doctors"]', '["amenity"="dentist"]', '["healthcare"~"physiotherapist|psychotherapist|laboratory|optometrist|podiatrist|nutritionist|speech_therapist"]'] },
+  { termos: ["nutricionista", "nutricao"], tags: ['["healthcare"="nutritionist"]', '["healthcare:speciality"~"nutrition"]'] },
   { termos: ["fisioterapia", "fisioterapeuta"], tags: ['["healthcare"="physiotherapist"]'] },
   { termos: ["psicolog"], tags: ['["healthcare"="psychotherapist"]', '["healthcare:speciality"="psychology"]'] },
   { termos: ["laboratorio", "exames"], tags: ['["healthcare"="laboratory"]'] },
@@ -39,7 +45,7 @@ const SEGMENTOS: Array<{ termos: string[]; tags: string[] }> = [
   { termos: ["autoescola", "auto escola", "cfc"], tags: ['["amenity"="driving_school"]'] },
   { termos: ["oficina", "mecanica", "auto center"], tags: ['["shop"="car_repair"]'] },
   { termos: ["autopecas", "auto pecas"], tags: ['["shop"="car_parts"]'] },
-  { termos: ["lava rapido", "lava jato", "estetica automotiva"], tags: ['["amenity"="car_wash"]'] },
+  { termos: ["lava rapido", "lava jato", "estetica automotiva", "lavagem automotiva"], tags: ['["amenity"="car_wash"]'] },
   { termos: ["borracharia", "pneus"], tags: ['["shop"="tyres"]'] },
   { termos: ["imobiliaria"], tags: ['["office"="estate_agent"]'] },
   { termos: ["advogad", "advocacia", "escritorio de advocacia"], tags: ['["office"="lawyer"]'] },
@@ -57,13 +63,15 @@ const SEGMENTOS: Array<{ termos: string[]; tags: string[] }> = [
   { termos: ["informatica", "computador", "eletronicos"], tags: ['["shop"="computer"]', '["shop"="electronics"]'] },
   { termos: ["celular", "assistencia tecnica"], tags: ['["shop"="mobile_phone"]', '["craft"="electronics_repair"]'] },
   { termos: ["hotel", "pousada", "hostel"], tags: ['["tourism"="hotel"]', '["tourism"="guest_house"]', '["tourism"="hostel"]'] },
-  { termos: ["agencia de viagens", "turismo"], tags: ['["shop"="travel_agency"]'] },
+  { termos: ["agencia de viagens"], tags: ['["shop"="travel_agency"]'] },
   { termos: ["lavanderia"], tags: ['["shop"="laundry"]', '["shop"="dry_cleaning"]'] },
   { termos: ["chaveiro"], tags: ['["shop"="locksmith"]', '["craft"="key_cutter"]'] },
   { termos: ["grafica"], tags: ['["shop"="copyshop"]', '["craft"="printer"]'] },
   { termos: ["fotografo", "fotografia"], tags: ['["craft"="photographer"]', '["shop"="photo"]'] },
   { termos: ["tatuagem", "tattoo", "estudio de tatuagem"], tags: ['["shop"="tattoo"]'] },
   { termos: ["buffet", "eventos", "festas"], tags: ['["amenity"="events_venue"]', '["shop"="party"]'] },
+  { termos: ["servicos residenciais", "eletricista", "encanador", "pedreiro", "pintor", "marido de aluguel", "reformas", "dedetizacao", "jardinagem", "vidracaria", "marcenaria", "serralheria"], tags: ['["craft"~"electrician|plumber|builder|painter|carpenter|glaziery|metal_construction|gardener|hvac|tiler|roofer"]', '["shop"="pest_control"]', '["office"="construction_company"]'] },
+  { termos: ["turismo", "passeio", "passeios", "receptivo"], tags: ['["shop"="travel_agency"]', '["office"="travel_agent"]', '["tourism"="information"]["information"="office"]'] },
 ];
 
 export function semAcento(s: string): string {
@@ -79,11 +87,18 @@ export function singular(texto: string): string {
 }
 
 export function tagsDoSegmento(nicho: string): string[] {
-  const n = singular(semAcento(nicho));
-  const achados = SEGMENTOS.filter((s) =>
-    s.termos.map(singular).some((t) => n === t || n.includes(t) || (t.length > 4 && t.includes(n))),
-  );
+  const n = ` ${singular(semAcento(nicho)).replace(/[^a-z0-9]+/g, " ").trim()} `;
+  // O termo tem de aparecer na busca começando numa palavra ("odontolog" casa "odontologica").
+  // Ao contrário não vale: "estetica" não pode puxar "estetica automotiva" (lava-rápido).
+  const achados = SEGMENTOS.filter((s) => s.termos.map((t) => singular(t)).some((t) => n.includes(` ${t}`)));
   return [...new Set(achados.flatMap((s) => s.tags))];
+}
+
+/** Regex de nome que ignora acento: "estética" -> "est[eéèê]tica". Usa o singular ("pastéis" -> "pastel"). */
+export function regexNome(nicho: string): string {
+  const base = singular(semAcento(nicho)).replace(/[^a-z0-9 ]/g, "").trim().slice(0, 60);
+  const classes: Record<string, string> = { a: "[aáàâã]", e: "[eéèê]", i: "[iíì]", o: "[oóòôõ]", u: "[uúùü]", c: "[cç]" };
+  return base.replace(/[aeiouc]/g, (l) => classes[l]);
 }
 
 /** Escapa um texto para dentro de uma regex entre aspas do Overpass QL. */
@@ -95,7 +110,7 @@ export function montarConsulta(nicho: string, bbox: [number, number, number, num
   const [s, n, w, e] = bbox;
   const area = `(${s},${w},${n},${e})`;
   const filtros = tagsDoSegmento(nicho).map((t) => `  nwr${t}["name"]${area};`);
-  const nome = escaparRegex(nicho.trim()).slice(0, 60);
+  const nome = regexNome(escaparRegex(nicho));
   if (nome) filtros.push(`  nwr["name"~"${nome}",i]${area};`);
   return `[out:json][timeout:90];\n(\n${filtros.join("\n")}\n);\nout center tags ${Math.max(1, Math.min(2000, max))};`;
 }

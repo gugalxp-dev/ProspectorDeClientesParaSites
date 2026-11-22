@@ -1,9 +1,10 @@
 // Registro das fontes de descoberta. Nova fonte = novo arquivo + uma linha aqui.
 
 import { fonteOsm } from "./osm";
+import { fonteWeb } from "./web";
 import type { FonteDescoberta } from "./tipos";
 
-const REGISTRO = new Map<string, FonteDescoberta>([fonteOsm].map((f) => [f.id, f]));
+const REGISTRO = new Map<string, FonteDescoberta>([fonteOsm, fonteWeb].map((f) => [f.id, f]));
 
 export function todasAsFontes(): FonteDescoberta[] {
   return [...REGISTRO.values()];

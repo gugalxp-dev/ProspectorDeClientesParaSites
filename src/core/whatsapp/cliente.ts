@@ -22,6 +22,8 @@ export interface ClienteWhatsApp {
   /** `textoAlternativo`: o que o Baileys envia no lugar do template (ele não tem templates). */
   enviarTemplate(paraE164: string, nome: string, idioma: string, parametros: string[], textoAlternativo?: string): Promise<ResultadoEnvio>;
   estado(): Promise<{ ok: boolean; detalhe: string }>;
+  /** Pergunta ao WhatsApp se o número tem conta. null = não dá para saber agora (ex.: desconectado). Só no Baileys. */
+  temWhatsApp?(paraE164: string): Promise<boolean | null>;
 }
 
 /** Erro devolvido pela Meta. `definitivo` = não adianta tentar de novo. */
@@ -153,6 +155,19 @@ let clienteLocal: ClienteWhatsApp | null = null;
 /** O worker registra aqui a conexão Baileys dele, para enviar sem passar pela ponte. */
 export function registrarClienteLocal(c: ClienteWhatsApp | null): void {
   clienteLocal = c;
+}
+
+/**
+ * O número tem WhatsApp? Só responde no worker com o Baileys conectado (a prospecção roda lá).
+ * Serve para não descartar telefone fixo que usa WhatsApp Business. null = não foi possível verificar.
+ */
+export async function verificarWhatsApp(e164: string): Promise<boolean | null> {
+  if (!clienteLocal?.temWhatsApp) return null;
+  try {
+    return await clienteLocal.temWhatsApp(e164);
+  } catch {
+    return null;
+  }
 }
 
 /** Token da ponte local, derivado do AUTH_SECRET (painel e worker leem o mesmo .env). */

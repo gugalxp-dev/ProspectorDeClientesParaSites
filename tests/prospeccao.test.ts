@@ -16,12 +16,16 @@ describe("descoberta: OpenStreetMap", () => {
     expect(tagsDoSegmento("Salões de beleza")).toContain('["shop"="hairdresser"]');
     expect(tagsDoSegmento("Clínicas odontológicas")).toContain('["amenity"="dentist"]');
     expect(tagsDoSegmento("xyz inexistente")).toEqual([]);
+    expect(tagsDoSegmento("Pastel").length).toBeGreaterThan(0);
+    expect(tagsDoSegmento("saúde").length).toBeGreaterThan(0);
+    expect(tagsDoSegmento("estética").some((t) => t.includes("car_wash"))).toBe(false); // não puxa lava-rápido
+    expect(tagsDoSegmento("estética automotiva")).toContain('["amenity"="car_wash"]');
   });
 
   it("monta consulta com bbox e busca por nome, escapando caracteres", () => {
     const q = montarConsulta('pet "shop"', [-24.1, -23.9, -46.5, -46.3], 100);
     expect(q).toContain("(-24.1,-46.5,-23.9,-46.3)");
-    expect(q).toContain('nwr["name"~"pet shop",i]');
+    expect(q).toContain('nwr["name"~"p[eéèê]t sh[oóòôõ]p",i]'); // nome sem depender de acento
     expect(q).toContain("out center tags 100");
   });
 
@@ -208,7 +212,7 @@ describe("filtro da prospecção", async () => {
 
   it("não registra rede (marca no OSM) nem fixo sem site; registra celular", () => {
     expect(motivoIgnorarNaImportacao({ nome: "Lanchonete X", rede: "Habib's", ehCelular: true, temSite: false }, cfg)).toMatch(/Rede/);
-    expect(motivoIgnorarNaImportacao({ nome: "Pizzaria do Zé", ehCelular: false, temSite: false }, cfg)).toMatch(/fixo/);
+    expect(motivoIgnorarNaImportacao({ nome: "Pizzaria do Zé", ehCelular: false, temSite: false }, cfg)).toMatch(/Sem celular/);
     expect(motivoIgnorarNaImportacao({ nome: "Pizzaria do Zé", ehCelular: false, temSite: true }, cfg)).toBeNull();
     expect(motivoIgnorarNaImportacao({ nome: "Pizzaria do Zé", ehCelular: true, temSite: false }, cfg)).toBeNull();
   });

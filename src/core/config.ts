@@ -93,8 +93,18 @@ export const esquemaTransferencia = z.object({
 export const esquemaProspeccao = z.object({
   fontes: z.record(z.string(), z.object({ ativa: z.boolean() })).default({
     osm: { ativa: true },
+    web: { ativa: true },
   }),
   maxEmpresasPorBusca: z.number().int().min(10).max(2000).default(300),
+  /** Fonte "Busca na internet (IA)": cada busca custa ~US$ 0,01 + texto lido. Limita o custo por pesquisa. */
+  web: z
+    .object({
+      maxBuscas: z.number().int().min(1).max(10).default(4),
+      maxEmpresas: z.number().int().min(5).max(60).default(30),
+      /** US$ por busca na internet (tarifa da OpenAI), para estimar o custo. */
+      custoPorBuscaUsd: z.number().min(0).max(1).default(0.01),
+    })
+    .default({ maxBuscas: 4, maxEmpresas: 30, custoPorBuscaUsd: 0.01 }),
   buscasSimultaneas: z.number().int().min(1).max(10).default(3),
   crawler: z
     .object({

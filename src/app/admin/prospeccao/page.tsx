@@ -22,8 +22,10 @@ export default async function AdminProspeccao() {
         campos={[
           { caminho: "maxEmpresasPorBusca", rotulo: "Máx. empresas por pesquisa (por fonte)", tipo: "numero", min: 10, max: 2000 },
           { caminho: "buscasSimultaneas", rotulo: "Descobertas simultâneas", tipo: "numero", min: 1, max: 10 },
+          { caminho: "web.maxBuscas", rotulo: "Busca na internet (IA): máx. buscas por pesquisa", tipo: "numero", min: 1, max: 10, ajuda: "Cada busca custa ~US$ 0,01 + o texto lido (~US$ 0,002). 4 buscas ≈ US$ 0,05 por pesquisa." },
+          { caminho: "web.maxEmpresas", rotulo: "Busca na internet (IA): máx. empresas por pesquisa", tipo: "numero", min: 5, max: 60 },
           { caminho: "qualificarAutomaticamente", rotulo: "Qualificar com IA automaticamente após a coleta", tipo: "booleano" },
-          { caminho: "exigirCelular", rotulo: "Só empresas com celular ou WhatsApp", tipo: "booleano", ajuda: "Telefone fixo é ignorado (não tem WhatsApp). Quem não se enquadra não é registrado nem analisado." },
+          { caminho: "exigirCelular", rotulo: "Só empresas com celular ou WhatsApp", tipo: "booleano", ajuda: "Fixo só entra se tiver WhatsApp (verificado no próprio WhatsApp quando o Baileys está conectado). Quem não se enquadra não é registrado nem analisado." },
           { caminho: "ignorarRedes", rotulo: "Ignorar redes e franquias", tipo: "booleano", ajuda: "Usa a marca cadastrada no OpenStreetMap e a lista abaixo." },
           { caminho: "redesIgnoradas", rotulo: "Redes ignoradas (uma por linha)", tipo: "lista" },
           { caminho: "descartarComSiteBom", rotulo: "Descartar empresas que já têm site bom", tipo: "booleano", ajuda: "Site no ar e sem problemas técnicos. Sites fora do ar ou com problemas continuam." },

@@ -9,6 +9,7 @@ import { ETAPAS_AUTOMATICAS, idEtapa, moverSeAutomatica } from "../crm/etapas";
 import { db } from "../db";
 import { emitir, registrarLog } from "../eventos";
 import { semAcento } from "../fontes/osm";
+import { verificarWhatsApp } from "../whatsapp/cliente";
 import { siteComProblemas, type AvaliacaoSite } from "./avaliacaoSite";
 
 type CfgFiltro = Pick<ConfigDe<"prospeccao">, "exigirCelular" | "descartarComSiteBom" | "ignorarRedes" | "redesIgnoradas">;
@@ -25,7 +26,7 @@ export function ehRede(nome: string, lista: string[]): boolean {
 export function motivoIgnorarNaImportacao(l: { nome: string; rede?: string; ehCelular: boolean; temSite: boolean }, cfg: CfgFiltro): string | null {
   if (cfg.ignorarRedes && (l.rede || ehRede(l.nome, cfg.redesIgnoradas))) return `Rede/franquia${l.rede ? ` (${l.rede})` : ""}.`;
   // Sem celular e sem site onde procurar um: não há como chamar no WhatsApp.
-  if (cfg.exigirCelular && !l.ehCelular && !l.temSite) return "Sem celular e sem site para procurar um (fixo não tem WhatsApp).";
+  if (cfg.exigirCelular && !l.ehCelular && !l.temSite) return "Sem celular/WhatsApp e sem site para procurar um.";
   return null;
 }
 
@@ -35,7 +36,7 @@ export function motivoDescarte(
   cfg: CfgFiltro,
 ): string | null {
   if (cfg.ignorarRedes && ehRede(l.nome, cfg.redesIgnoradas)) return "Rede/franquia.";
-  if (cfg.exigirCelular && !l.ehCelular && !l.whatsappE164) return "Sem celular ou WhatsApp (só telefone fixo ou nenhum).";
+  if (cfg.exigirCelular && !l.ehCelular && !l.whatsappE164) return "Sem celular ou WhatsApp (fixo sem WhatsApp, ou nenhum telefone).";
   if (cfg.descartarComSiteBom && l.presenca === "com_site") {
     const avaliacao = l.siteAvaliacao ? (JSON.parse(l.siteAvaliacao) as AvaliacaoSite) : null;
     if (avaliacao?.online && !siteComProblemas(avaliacao)) return "Já tem site no ar, sem problemas técnicos.";
@@ -58,6 +59,11 @@ export async function aplicarFiltro(leadId: string, buscaId?: string | null): Pr
   const [l, cfg] = await Promise.all([db.lead.findUnique({ where: { id: leadId }, include: { conversa: { select: { id: true } } } }), obterConfig("prospeccao")]);
   if (!l) return true;
   if (!(await intocado(l))) return false;
+  // Ficou só com fixo (nem a fonte nem o site trouxeram celular): pergunta ao WhatsApp antes de descartar.
+  if (cfg.exigirCelular && !l.ehCelular && !l.whatsappE164 && l.telefoneE164 && (await verificarWhatsApp(l.telefoneE164))) {
+    await db.lead.update({ where: { id: leadId }, data: { whatsappE164: l.telefoneE164 } });
+    l.whatsappE164 = l.telefoneE164;
+  }
   const motivo = motivoDescarte(l, cfg);
   if (!motivo) {
     if (!l.etapaId) await moverSeAutomatica(leadId, "novo");

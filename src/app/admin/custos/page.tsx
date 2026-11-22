@@ -26,6 +26,7 @@ const OPERACAO: Record<string, string> = {
   qualificacao: "Qualificação de leads",
   agente: "Agente comercial (respostas no WhatsApp)",
   embedding: "Embeddings da base de conhecimento",
+  descoberta_web: "Busca de empresas na internet (IA)",
   teste: "Testes de conexão",
   resumo: "Resumos",
   mensagem_template: "Templates de primeiro contato",

@@ -3,6 +3,7 @@ import { AtualizarAoVivo } from "@/components/AoVivo";
 import { NovaPesquisa } from "@/components/NovaPesquisa";
 import { CancelarPesquisa } from "@/components/CancelarPesquisa";
 import { ExcluirPesquisa } from "@/components/ExcluirPesquisa";
+import { RefazerPesquisa } from "@/components/RefazerPesquisa";
 import { Barra, Titulo, Vazio, dataHora, usd } from "@/components/ui";
 import { listarBuscas } from "@/core/busca";
 import { obterConfig } from "@/core/config";
@@ -74,6 +75,7 @@ export default async function Pesquisas() {
                   <td className="whitespace-nowrap">
                     <div className="flex flex-col items-end gap-1">
                       {["pendente", "descobrindo", "processando"].includes(b.status) && <CancelarPesquisa id={b.id} />}
+                      {!["pendente", "descobrindo", "processando"].includes(b.status) && <RefazerPesquisa id={b.id} nome={`${b.nicho} — ${b.cidade}`} />}
                       <ExcluirPesquisa id={b.id} nome={`${b.nicho} — ${b.cidade}`} />
                     </div>
                   </td>
