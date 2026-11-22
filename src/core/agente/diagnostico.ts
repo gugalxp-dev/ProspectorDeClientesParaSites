@@ -32,12 +32,18 @@ const TRADUCAO: Record<string, { fato: string; impacto: string }> = {
   descricao: { fato: "o site não tem descrição para o Google", impacto: "o Google mostra um resumo ruim (ou nenhum) da empresa nas buscas" },
 };
 /** Construtores de site gratuitos: o site fica num endereço da plataforma, sem domínio próprio. */
-const PLATAFORMA_GRATIS = /(^|.)(ueniweb.com|wixsite.com|webnode.page|webnode.com(.br)?|negocio.site|business.site|blogspot.com|wordpress.com|godaddysites.com|site123.me|weebly.com|carrd.co|my.canva.site|netlify.app|vercel.app|github.io|squarespace.com|jimdosite.com|strikingly.com|mystrikingly.com)$/i;
+const PLATAFORMAS = [
+  "ueniweb.com", "wixsite.com", "webnode.page", "webnode.com", "webnode.com.br", "negocio.site", "business.site", "blogspot.com", "wordpress.com",
+  "godaddysites.com", "site123.me", "weebly.com", "carrd.co", "my.canva.site", "netlify.app", "vercel.app", "github.io", "squarespace.com",
+  "jimdosite.com", "strikingly.com", "mystrikingly.com",
+];
+/** O host é a própria plataforma ou um subdomínio dela (ex.: al-turismo.ueniweb.com). Sem regex: nada de escape para errar. */
+const ehDaPlataforma = (host: string) => PLATAFORMAS.some((p) => host === p || host.endsWith(`.${p}`));
 
 export function emPlataformaGratuita(site: string | null): boolean {
   if (!site) return false;
   try {
-    return PLATAFORMA_GRATIS.test(new URL(/^https?:/i.test(site) ? site : `https://${site}`).hostname);
+    return ehDaPlataforma(new URL(/^https?:/i.test(site) ? site : `https://${site}`).hostname.toLowerCase());
   } catch {
     return false;
   }

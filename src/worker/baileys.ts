@@ -184,7 +184,7 @@ const clienteLocal: ClienteWhatsApp = {
   },
   async temWhatsApp(paraE164) {
     if (!sock || !estado.conectado) return null;
-    const [r] = (await sock.onWhatsApp(paraE164.replace(/D/g, ""))) ?? [];
+    const [r] = (await sock.onWhatsApp(paraE164.replace(/\D/g, ""))) ?? [];
     return !!r?.exists;
   },
 };

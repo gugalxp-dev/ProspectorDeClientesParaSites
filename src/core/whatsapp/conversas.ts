@@ -284,7 +284,8 @@ export async function iniciarContato(leadId: string, usuarioId: string) {
           .replaceAll("{agente}", cfg.nomeAgente || "a equipe")
           .replaceAll("{empresa}", cfg.nomeEmpresa || "nossa empresa")
           .replaceAll("{gancho}", ganchoPrimeiroContato(lead))
-          .replace(/s{2,}/g, " ")
+          .replaceAll("{site}", cfg.siteEmpresa)
+          .replace(/\s{2,}/g, " ")
       : undefined;
   if (cliente.modo === "baileys" && !texto?.trim()) throw new EnvioBloqueado("Configure o texto do primeiro contato (modo Baileys) em Admin > Agente.");
 

@@ -48,7 +48,14 @@ interface Contexto {
 }
 
 export function montarSistema(cfg: Awaited<ReturnType<typeof obterConfig<"agente">>>, ctx: Contexto): string {
-  const identidade = [cfg.nomeAgente && `Seu nome: ${cfg.nomeAgente}.`, cfg.nomeEmpresa && `Você representa: ${cfg.nomeEmpresa}.`].filter(Boolean).join(" ");
+  const identidade = [
+    cfg.nomeAgente && `Seu nome: ${cfg.nomeAgente}.`,
+    cfg.nomeEmpresa && `Você representa: ${cfg.nomeEmpresa}.`,
+    cfg.siteEmpresa &&
+      `Site da sua empresa (portfólio): ${cfg.siteEmpresa}. Envie esse link quando o cliente pedir mais detalhes, exemplos de trabalhos, referências ou quiser conhecer a empresa. Não mande sem contexto nem repita se já enviou na conversa.`,
+  ]
+    .filter(Boolean)
+    .join(" ");
   const servicos = ctx.servicos.length
     ? ctx.servicos
         .map((s) => `- ${s.nome}: ${s.descricao} | Preço: ${formatarReais(s.precoCentavos)} | Prazo: ${s.prazoDias} dias | Desconto máximo: ${s.descontoMaxPct}%${s.condicoes ? ` | Condições: ${s.condicoes}` : ""}`)

@@ -21,6 +21,7 @@ export default async function AdminAgente() {
           { caminho: "ativo", rotulo: "Agente ativo (desligar pausa todas as respostas automáticas)", tipo: "booleano" },
           { caminho: "nomeAgente", rotulo: "Nome do agente (opcional)", tipo: "texto" },
           { caminho: "nomeEmpresa", rotulo: "Nome da sua empresa", tipo: "texto" },
+          { caminho: "siteEmpresa", rotulo: "Site / portfólio da sua empresa", tipo: "texto", ajuda: "Ex.: https://suaempresa.com.br. O agente envia quando o cliente pedir detalhes, exemplos de trabalho ou referências. Também pode ir no primeiro contato com {site}." },
           { caminho: "instrucoes", rotulo: "Instruções de comportamento", tipo: "area" },
           { caminho: "historicoMaximo", rotulo: "Mensagens do histórico no contexto", tipo: "numero", min: 4, max: 60 },
           { caminho: "trechosConhecimento", rotulo: "Trechos da base de conhecimento por resposta", tipo: "numero", min: 1, max: 12 },

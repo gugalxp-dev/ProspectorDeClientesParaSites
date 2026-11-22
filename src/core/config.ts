@@ -46,6 +46,8 @@ export const esquemaAgente = z.object({
   ativo: z.boolean().default(true),
   nomeAgente: z.string().max(60).default(""),
   nomeEmpresa: z.string().max(120).default(""),
+  /** Site/portfólio da sua empresa: o agente envia quando o cliente quiser ver trabalhos ou mais detalhes. */
+  siteEmpresa: z.string().max(300).default(""),
   /** Instruções de comportamento (o "jeito" do agente). Regras de segurança fixas ficam no código do agente. */
   instrucoes: z
     .string()
@@ -69,7 +71,7 @@ export const esquemaAgente = z.object({
   mensagemOptOut: z.string().max(500).default("Tudo bem, não enviaremos mais mensagens. Obrigado pela atenção!"),
   templatePrimeiroContato: z.string().max(512).default(""),
   idiomaTemplate: z.string().max(10).default("pt_BR"),
-  /** Modo Baileys (sem templates da Meta): texto do primeiro contato. Aceita {nome}, {agente}, {empresa} e {gancho} (frase tirada do diagnóstico da empresa). */
+  /** Modo Baileys (sem templates da Meta): texto do primeiro contato. Aceita {nome}, {agente}, {empresa}, {site} e {gancho} (frase tirada do diagnóstico da empresa). */
   mensagemPrimeiroContato: z
     .string()
     .max(1000)
