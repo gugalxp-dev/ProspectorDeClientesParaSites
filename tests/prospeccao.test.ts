@@ -98,11 +98,40 @@ describe("crawler", () => {
     const f = (async () => {
       throw Object.assign(new Error("fetch failed"), { cause: { code: "ENOTFOUND" } });
     }) as unknown as typeof fetch;
-    const r = await rastrearSite("https://morto.com.br", { ...OPC, fetch: f });
-    expect(r.erroInicial).toBe("ENOTFOUND");
+    const r = await rastrearSite("https://morto.com.br", { ...OPC, fetch: f, verificarDominio: async () => "inexistente" });
+    expect(r.erroInicial).toBe("NXDOMAIN"); // confirmado no DNS público
     const a = avaliarSite(r, extrairDadosSite(r.paginas, "https://morto.com.br"));
     expect(a.online).toBe(false);
     expect(a.motivoFora).toMatch(/domínio não existe/);
+  });
+
+  it("DNS do computador falhou mas o domínio existe: não conclui 'fora do ar'", async () => {
+    const f = (async () => {
+      throw Object.assign(new Error("fetch failed"), { cause: { code: "ENOTFOUND" } });
+    }) as unknown as typeof fetch;
+    const r = await rastrearSite("https://vivo.com.br", { ...OPC, fetch: f, verificarDominio: async () => "existe" });
+    expect(r.erroInicial).toBe("DNS_LOCAL");
+  });
+
+  it("site que só abre sem 'www' é encontrado", async () => {
+    const f = (async (entrada: RequestInfo | URL) => {
+      const url = String(entrada);
+      if (url.includes("www.")) throw Object.assign(new Error("fetch failed"), { cause: { code: "ENOTFOUND" } });
+      return new Response("<html><title>Loja</title></html>", { status: 200, headers: { "content-type": "text/html" } });
+    }) as unknown as typeof fetch;
+    const r = await rastrearSite("https://www.loja.com.br", { ...OPC, fetch: f, verificarDominio: async () => "inexistente" });
+    expect(r.erroInicial).toBeUndefined();
+    expect(r.urlFinal).toContain("https://loja.com.br");
+  });
+
+  it("falha de conexão passageira: tenta de novo antes de dizer que está fora do ar", async () => {
+    let tentativas = 0;
+    const f = (async () => {
+      if (++tentativas <= 3) throw Object.assign(new Error("fetch failed"), { cause: { code: "ECONNRESET" } });
+      return new Response("<html><title>Ok</title></html>", { status: 200, headers: { "content-type": "text/html" } });
+    }) as unknown as typeof fetch;
+    const r = await rastrearSite("https://instavel.com.br", { ...OPC, fetch: f });
+    expect(r.erroInicial).toBeUndefined();
   });
 });
 

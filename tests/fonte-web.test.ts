@@ -69,3 +69,19 @@ describe("fonte: busca na internet (IA)", () => {
     expect(await db.lead.findMany({ select: { nome: true, whatsappE164: true } })).toEqual([{ nome: "Escuna Real", whatsappE164: "+5513997771234" }]);
   });
 });
+
+describe("site informado pela busca por IA", () => {
+  it("domínio inexistente (confirmado) vira 'sem site', não 'fora do ar'", async () => {
+    const { processarLead } = await import("../src/core/prospeccao/processar");
+    const l = await db.lead.create({
+      data: { nome: "Toddy Turismo", nomeNormalizado: "toddy turismo", cidade: "Guarujá", website: "https://www.toddyturismo.com.br/", presenca: "com_site", telefoneE164: "+5513920005587", ehCelular: true },
+    });
+    await db.leadOrigem.create({ data: { leadId: l.id, fonte: "web", idExterno: "x1" } });
+    const semDns = (async () => {
+      throw Object.assign(new Error("fetch failed"), { cause: { code: "ENOTFOUND" } });
+    }) as unknown as typeof fetch;
+    await processarLead(l.id, null, { fetch: semDns, verificarDominio: async () => "inexistente" });
+    const depois = await db.lead.findUniqueOrThrow({ where: { id: l.id } });
+    expect(depois).toMatchObject({ presenca: "sem_site_identificado", website: null });
+  });
+});

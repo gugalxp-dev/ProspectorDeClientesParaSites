@@ -15,7 +15,31 @@ export interface OpcoesCrawler {
   respeitarRobots: boolean;
   /** Para testes. */
   fetch?: typeof fetch;
+  /** Para testes: confirmação do domínio num DNS público (padrão: Google DNS). */
+  verificarDominio?: (host: string) => Promise<EstadoDominio>;
 }
+
+/** existe = está registrado; inexistente = o registro (ex.: registro.br) diz que não existe; desconhecido = não deu para saber. */
+export type EstadoDominio = "existe" | "inexistente" | "desconhecido";
+
+/**
+ * Confirma o domínio no Google DNS (DNS over HTTPS), que pergunta à autoridade do domínio.
+ * Evita marcar "domínio não existe" quando foi só o DNS do computador/provedor que falhou.
+ */
+export async function verificarDominioPublico(host: string): Promise<EstadoDominio> {
+  try {
+    const r = await fetch(`https://dns.google/resolve?name=${encodeURIComponent(host)}&type=A`, { signal: AbortSignal.timeout(10_000) });
+    const d = (await r.json()) as { Status?: number; Answer?: unknown[] };
+    if (d.Status === 3) return "inexistente"; // NXDOMAIN, respondido pela autoridade do domínio
+    if (d.Status === 0 && d.Answer?.length) return "existe";
+    return "desconhecido";
+  } catch {
+    return "desconhecido";
+  }
+}
+
+/** Falhas de rede que podem ser passageiras: vale tentar de novo antes de dizer que o site está fora do ar. */
+const ERRO_PASSAGEIRO = /^(timeout|ECONNREFUSED|ECONNRESET|ETIMEDOUT|EAI_AGAIN|EPIPE|UND_ERR_\w+|ENETUNREACH|EHOSTUNREACH)$/;
 
 export interface PaginaVisitada {
   url: string;
@@ -161,6 +185,24 @@ export async function rastrearSite(website: string, o: OpcoesCrawler): Promise<R
       if (inicial.startsWith("https://")) res.certificadoFalhou = true;
       primeira = segunda;
     }
+  }
+  // Com e sem "www": muito site pequeno só responde de um jeito.
+  if (primeira.erro) {
+    const u = new URL(inicial);
+    u.hostname = u.hostname.startsWith("www.") ? u.hostname.slice(4) : `www.${u.hostname}`;
+    const semOuComWww = await baixar(u.toString(), o);
+    if (!semOuComWww.erro) primeira = semOuComWww;
+  }
+  // Falha de rede passageira: espera e tenta mais uma vez antes de concluir.
+  if (primeira.erro && ERRO_PASSAGEIRO.test(primeira.erro)) {
+    await new Promise((r) => setTimeout(r, o.fetch ? 0 : 3000));
+    const outra = await baixar(inicial, { ...o, timeoutMs: o.timeoutMs * 2 });
+    if (!outra.erro) primeira = outra;
+  }
+  // "Domínio não encontrado" só vale com confirmação num DNS público; senão foi o DNS local que falhou.
+  if (primeira.erro === "ENOTFOUND" || primeira.erro === "EAI_AGAIN") {
+    const estado = await (o.verificarDominio ?? verificarDominioPublico)(new URL(inicial).hostname);
+    primeira = { ...primeira, erro: estado === "inexistente" ? "NXDOMAIN" : "DNS_LOCAL" };
   }
   if (primeira.erro) {
     res.erroInicial = primeira.erro;

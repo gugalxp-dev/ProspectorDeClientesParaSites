@@ -30,7 +30,7 @@ export interface AvaliacaoSite {
 }
 
 function motivoErro(erro: string): string {
-  if (erro === "ENOTFOUND") return "O domínio não existe mais (provavelmente expirou)";
+  if (erro === "NXDOMAIN" || erro === "ENOTFOUND") return "O domínio não existe (confirmado no registro de domínios)";
   if (erro === "timeout") return "O site não respondeu dentro do tempo limite";
   if (erro === "ECONNREFUSED") return "O servidor do site recusou a conexão";
   if (/CERT|SSL|TLS/i.test(erro)) return "Erro de certificado de segurança";

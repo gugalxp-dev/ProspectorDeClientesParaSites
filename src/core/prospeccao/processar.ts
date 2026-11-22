@@ -14,7 +14,7 @@ import { descobrirSite } from "./descobrirSite";
 import { registrarDados } from "./importar";
 import { extrairDadosSite } from "./scraper";
 
-export async function processarLead(leadId: string, buscaId?: string | null, opcoes: { fetch?: typeof fetch; forcar?: boolean } = {}) {
+export async function processarLead(leadId: string, buscaId?: string | null, opcoes: { fetch?: typeof fetch; forcar?: boolean; verificarDominio?: OpcoesCrawler["verificarDominio"] } = {}) {
   let l = await db.lead.findUnique({ where: { id: leadId } });
   if (!l) return;
   const [cfg, pesos] = await Promise.all([obterConfig("prospeccao"), obterConfig("pesos")]);
@@ -46,8 +46,38 @@ export async function processarLead(leadId: string, buscaId?: string | null, opc
       atrasoPorHostMs: cfg.crawler.atrasoPorHostMs,
       respeitarRobots: cfg.crawler.respeitarRobots,
       fetch: opcoes.fetch,
+      verificarDominio: opcoes.verificarDominio,
     };
     const crawl = await rastrearSite(l.website!, o);
+
+    // Nem o DNS do computador nem o público responderam: sem certeza, não marca "fora do ar". Tenta de novo depois.
+    if (crawl.erroInicial === "DNS_LOCAL") {
+      await registrarLog("aviso", "crawler", `${l.nome}: não foi possível confirmar se ${l.website} existe (DNS). Será verificado de novo.`, { buscaId, leadId });
+      await emitir("lead.atualizado", { id: leadId, buscaId });
+      return;
+    }
+    // Domínio que não existe e veio só da busca por IA: o endereço foi inventado pela IA. A empresa não tem esse site.
+    if (crawl.erroInicial === "NXDOMAIN") {
+      const fontes = (await db.leadOrigem.findMany({ where: { leadId }, select: { fonte: true } })).map((f) => f.fonte);
+      if (fontes.length && fontes.every((f) => f === "web")) {
+        await db.lead.update({
+          where: { id: leadId },
+          data: {
+            website: null,
+            dominio: null,
+            presenca: "sem_site_identificado",
+            presencaConfianca: "media",
+            siteAvaliacao: null,
+            siteAvaliadoEm: new Date(),
+            pontuacaoRegra: calcularPontuacao({ ...l, presenca: "sem_site_identificado" }, pesos),
+          },
+        });
+        await registrarDados(leadId, "web", null, { site_possivel: `${l.website} (informado pela busca por IA, mas o domínio não existe)` });
+        await registrarLog("info", "crawler", `${l.nome}: o site ${l.website} (da busca por IA) não existe. Considerado sem site.`, { buscaId, leadId });
+        await emitir("lead.atualizado", { id: leadId, buscaId });
+        return;
+      }
+    }
     const dados = extrairDadosSite(crawl.paginas, l.website!);
     const avaliacao = avaliarSite(crawl, dados);
     const presenca: Presenca = avaliacao.online ? "com_site" : "site_fora_do_ar";
