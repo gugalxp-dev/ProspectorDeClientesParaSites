@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { Target } from "lucide-react";
+import { LogoMarca, NOME_PLATAFORMA } from "@/components/LogoMarca";
 import { FormLogin } from "@/components/FormLogin";
 import { usuarioAtual } from "@/lib/auth";
 
@@ -11,10 +11,9 @@ export default async function Entrar({ searchParams }: { searchParams: Promise<{
   return (
     <div className="mx-auto mt-16 max-w-sm">
       <div className="mb-8 flex flex-col items-center gap-3 text-center">
-        <span className="flex size-14 items-center justify-center rounded-2xl bg-linear-to-br from-violet-600 via-fuchsia-600 to-pink-500 shadow-xl shadow-fuchsia-600/30">
-          <Target className="size-7 text-white" />
-        </span>
-        <span className="titulo-gradiente text-xl font-bold">ProspectorDeClientesParaSites</span>
+        <LogoMarca tamanho={64} id="cp-login" />
+        <span className="titulo-gradiente text-2xl font-bold tracking-tight">{NOME_PLATAFORMA}</span>
+        <span className="-mt-2 text-sm text-slate-500">Prospecção com IA, do primeiro contato ao contrato</span>
       </div>
       <FormLogin destino={destino} />
       <p className="mt-4 text-center text-xs text-slate-500">

@@ -1,4 +1,4 @@
-# ProspectorDeClientesParaSites
+# Client Prospector
 
 Plataforma de prospecção comercial B2B para vender **sites institucionais**. Você informa o tipo de negócio e a cidade. O sistema descobre as empresas, visita os sites, avalia a presença digital, qualifica cada uma com IA e organiza tudo num CRM Kanban. Depois, um agente comercial conduz a conversa pelo **WhatsApp Business Cloud API** até a hora do fechamento, que fica com você.
 

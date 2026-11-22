@@ -143,7 +143,7 @@ async function regrasRobots(origem: string, o: OpcoesCrawler): Promise<Regra[]> 
     await esperarVez(hostDe(origem), o.atrasoPorHostMs);
     const f = o.fetch ?? fetchPadrao ?? fetch;
     const r = await f(`${origem}/robots.txt`, { headers: { "User-Agent": USER_AGENT }, signal: AbortSignal.timeout(Math.min(o.timeoutMs, 8000)) });
-    if (r.ok) regras = interpretarRobots((await r.text()).slice(0, 200_000), "ProspectorDeClientesParaSites");
+    if (r.ok) regras = interpretarRobots((await r.text()).slice(0, 200_000), "ClientProspector");
     else await r.body?.cancel().catch(() => undefined);
   } catch {
     regras = [];

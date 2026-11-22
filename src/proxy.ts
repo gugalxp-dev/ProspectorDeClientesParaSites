@@ -8,7 +8,8 @@ const PUBLICAS = ["/entrar"];
 export function proxy(req: NextRequest) {
   const { pathname, search } = req.nextUrl;
   // /contrato/<token>: página que o cliente abre pelo link (o token é a autorização).
-  const publica = PUBLICAS.includes(pathname) || pathname.startsWith("/contrato/");
+  // /icon.svg e /apple-icon: ícone do site (aparece na aba e antes do login).
+  const publica = PUBLICAS.includes(pathname) || pathname.startsWith("/contrato/") || pathname === "/icon.svg" || pathname.startsWith("/apple-icon");
   if (!publica && !req.cookies.has("pcs_sessao")) {
     const url = req.nextUrl.clone();
     url.pathname = "/entrar";
