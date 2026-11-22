@@ -26,8 +26,10 @@ export default async function Layout({ children }: { children: React.ReactNode }
     ...(u?.papel === "admin" ? [{ href: "/admin/custos", rotulo: "Gastos" }, { href: "/admin", rotulo: "Admin" }] : []),
   ];
   return (
-    <html lang="pt-BR" className={tema === "escuro" ? "escuro" : undefined}>
-      <body>
+    // suppressHydrationWarning: extensões do navegador (ColorZilla, gerenciadores de senha...) colocam atributos
+    // no <html>/<body> antes do React carregar. Isso não é erro do sistema; só no html/body (não vale para os filhos).
+    <html lang="pt-BR" className={tema === "escuro" ? "escuro" : undefined} suppressHydrationWarning>
+      <body suppressHydrationWarning>
         {u && (
           <header className="sticky top-0 z-20 print:hidden border-b border-slate-200 bg-superficie/70 backdrop-blur-xl">
             <div className="mx-auto flex max-w-[1600px] items-center gap-3 px-4 py-3 sm:gap-6">
