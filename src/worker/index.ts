@@ -21,6 +21,8 @@ const GRUPOS: Grupo[] = [
   // Mensagens primeiro: o cliente está esperando.
   { tipos: ["whatsapp_evento", "whatsapp_mock_status"], limite: async () => 4, rodando: 0 },
   { tipos: ["agente_responder"], limite: async () => 2, rodando: 0 },
+  // Primeiros contatos: um por vez, sempre (o espaçamento vem do agendamento).
+  { tipos: ["contato_agendado"], limite: async () => 1, rodando: 0 },
   { tipos: ["busca_descobrir"], limite: async () => (await obterConfig("prospeccao")).buscasSimultaneas, rodando: 0 },
   { tipos: ["lead_processar"], limite: async () => (await obterConfig("prospeccao")).crawler.concorrencia, rodando: 0 },
   { tipos: ["lead_qualificar"], limite: async () => 2, rodando: 0 },

@@ -4,6 +4,7 @@ import { z } from "zod";
 import { ConflitoEdicao, moverLead } from "@/core/crm/leads";
 import { db } from "@/core/db";
 import { enfileirar } from "@/core/fila";
+import { agendarContato, cancelarAgendamento } from "@/core/whatsapp/agendamento";
 import { EnvioBloqueado, iniciarContato, registrarConsentimento, registrarOptOut } from "@/core/whatsapp/conversas";
 import { auditar } from "@/lib/auditoria";
 import { jsonErro, lerJson, rota } from "@/lib/http";
@@ -21,6 +22,8 @@ const esquemas = {
   }),
   optout: z.object({ motivo: z.string().trim().min(3).max(300) }),
   contato: z.object({}),
+  agendar: z.object({}),
+  cancelar_agendamento: z.object({}),
   reprocessar: z.object({}),
 };
 
@@ -49,6 +52,16 @@ export const POST = rota<P>(async (req, { params, usuario }) => {
         if (!(await dentroDoLimite(`contato:${usuario.id}`, 60, 3600_000))) return jsonErro(429, "Muitos contatos iniciados na última hora.");
         const r = await iniciarContato(id, usuario.id);
         return Response.json({ ok: true, mensagemId: r.mensagem.id });
+      }
+      case "agendar": {
+        const quando = await agendarContato(id, usuario.id);
+        await auditar(usuario.id, "contato_agendado", id, { quando });
+        return Response.json({ ok: true, quando: quando.toISOString() });
+      }
+      case "cancelar_agendamento": {
+        await cancelarAgendamento(id);
+        await auditar(usuario.id, "contato_agendamento_cancelado", id);
+        return Response.json({ ok: true });
       }
       case "reprocessar": {
         await enfileirar("lead_processar", { leadId: id, forcar: true }, { chave: `reprocessar:${id}`, reabrirSeConcluido: true });

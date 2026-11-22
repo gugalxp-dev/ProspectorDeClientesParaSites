@@ -45,11 +45,20 @@ export default async function AdminWhatsapp() {
       <FormConfig
         secao="whatsapp"
         valores={cfg}
-        titulo="Limites de envio"
+        titulo="Limites e proteção do número"
         descricao="Evitam envios indiscriminados e protegem a qualidade do número junto à Meta."
         campos={[
           { caminho: "limiteDiarioMensagens", rotulo: "Máx. mensagens enviadas por dia (todas)", tipo: "numero", min: 0, max: 10000 },
           { caminho: "limiteDiarioTemplates", rotulo: "Máx. templates (primeiros contatos) por dia", tipo: "numero", min: 0, max: 1000 },
+          { caminho: "envioIntervaloMinMin", rotulo: "Fila de primeiros contatos: intervalo mínimo (minutos)", tipo: "numero", min: 1, max: 120 },
+          { caminho: "envioIntervaloMaxMin", rotulo: "Fila de primeiros contatos: intervalo máximo (minutos)", tipo: "numero", min: 1, max: 240, ajuda: "Cada envio sai num tempo aleatório entre o mínimo e o máximo depois do anterior." },
+          { caminho: "horaInicio", rotulo: "Enviar a partir de (hora)", tipo: "numero", min: 0, max: 23 },
+          { caminho: "horaFim", rotulo: "Enviar até (hora)", tipo: "numero", min: 1, max: 24 },
+          { caminho: "enviarSabado", rotulo: "Enviar aos sábados", tipo: "booleano" },
+          { caminho: "enviarDomingo", rotulo: "Enviar aos domingos", tipo: "booleano" },
+          { caminho: "verificarNumeros", rotulo: "Verificar se o número tem WhatsApp (na prospecção)", tipo: "booleano", ajuda: "Salva fixos com WhatsApp e confere os telefones da busca por IA. Feito devagar para não parecer robô." },
+          { caminho: "intervaloVerificacaoSeg", rotulo: "Intervalo entre verificações (segundos)", tipo: "numero", min: 3, max: 120 },
+          { caminho: "verificacoesPorDia", rotulo: "Máx. verificações por dia", tipo: "numero", min: 0, max: 500 },
           { caminho: "precoTemplateUsd", rotulo: "Custo estimado por template (US$, opcional)", tipo: "numero", min: 0, passo: 0.001, ajuda: "Para estimar custos. Consulte a tabela de preços da Meta para o Brasil. Vazio = sem estimativa." },
         ]}
       />

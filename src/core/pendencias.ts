@@ -3,6 +3,7 @@
 
 import { db } from "./db";
 import { provedorAtivo } from "./ia/servico";
+import { agendados } from "./whatsapp/agendamento";
 import { estadoBaileys, modoWhatsApp } from "./whatsapp/cliente";
 import type { Prisma } from "@/generated/prisma/client";
 
@@ -57,8 +58,9 @@ async function alertas(): Promise<Alerta[]> {
 
 export async function contarPendencias() {
   const f = await filtrosIntervencao();
+  const naFila = [...(await agendados()).keys()];
   const [aprovar, contratos, intervencao, al] = await Promise.all([
-    db.lead.count({ where: AGUARDANDO_APROVACAO }),
+    db.lead.count({ where: { AND: [AGUARDANDO_APROVACAO, { id: { notIn: naFila } }] } }),
     db.lead.count({ where: f.gerarContrato }),
     db.lead.count({ where: f.outras }),
     alertas(),
@@ -69,12 +71,15 @@ export async function contarPendencias() {
 export async function listarPendencias() {
   const campos = { id: true, nome: true, cidade: true, segmento: true, score: true, presenca: true, revisao: true, whatsappE164: true, telefoneE164: true } as const;
   const f = await filtrosIntervencao();
-  const [aprovar, contratos, intervencao, al, perdido] = await Promise.all([
-    db.lead.findMany({ where: AGUARDANDO_APROVACAO, select: campos, orderBy: [{ score: "desc" }, { criadoEm: "asc" }], take: 200 }),
+  const fila = await agendados();
+  const [aprovar, contratos, intervencao, al, perdido, naFila] = await Promise.all([
+    db.lead.findMany({ where: { AND: [AGUARDANDO_APROVACAO, { id: { notIn: [...fila.keys()] } }] }, select: campos, orderBy: [{ score: "desc" }, { criadoEm: "asc" }], take: 200 }),
     db.lead.findMany({ where: f.gerarContrato, select: { ...campos, motivoTransferencia: true, transferidoEm: true }, orderBy: { transferidoEm: "asc" } }),
     db.lead.findMany({ where: f.outras, select: { ...campos, motivoTransferencia: true, transferidoEm: true }, orderBy: { transferidoEm: "asc" } }),
     alertas(),
     db.etapaCrm.findUnique({ where: { chave: "perdido" }, select: { id: true } }),
+    db.lead.findMany({ where: { id: { in: [...fila.keys()] } }, select: { id: true, nome: true, cidade: true, segmento: true } }),
   ]);
-  return { aprovar, contratos, intervencao, alertas: al, etapaPerdidoId: perdido?.id ?? null };
+  const agendadosLista = naFila.map((l) => ({ ...l, quando: fila.get(l.id)! })).sort((a, b) => a.quando.getTime() - b.quando.getTime());
+  return { aprovar, contratos, intervencao, alertas: al, etapaPerdidoId: perdido?.id ?? null, agendados: agendadosLista };
 }

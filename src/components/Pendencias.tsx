@@ -19,18 +19,20 @@ interface LeadAprovar {
   telefoneE164: string | null;
 }
 
-/** Fila de leads esperando você aprovar o primeiro contato. Aprovar = envia a mensagem de primeiro contato. */
+/** Fila de leads esperando você aprovar o primeiro contato. Aprovar = agenda o envio (fila espaçada, horário comercial). */
 export function AprovarContatos({ leads, etapaPerdidoId }: { leads: LeadAprovar[]; etapaPerdidoId: string | null }) {
   const router = useRouter();
   const [feitos, setFeitos] = useState<Record<string, "aprovado" | "descartado">>({});
+  const [horarios, setHorarios] = useState<Record<string, string>>({});
   const [erros, setErros] = useState<Record<string, string>>({});
   const [ocupado, setOcupado] = useState<string | null>(null);
 
   async function aprovar(id: string): Promise<boolean> {
     setOcupado(id);
     try {
-      await chamarApi(`/api/leads/${id}/contato`, { corpo: {} });
+      const r = await chamarApi<{ quando: string }>(`/api/leads/${id}/agendar`, { corpo: {} });
       setFeitos((f) => ({ ...f, [id]: "aprovado" }));
+      setHorarios((h) => ({ ...h, [id]: new Date(r.quando).toLocaleString("pt-BR", { weekday: "short", hour: "2-digit", minute: "2-digit" }) }));
       setErros((er) => {
         const resto = { ...er };
         delete resto[id];
@@ -61,7 +63,7 @@ export function AprovarContatos({ leads, etapaPerdidoId }: { leads: LeadAprovar[
   async function aprovarTodos() {
     for (const l of leads) {
       if (feitos[l.id]) continue;
-      if (!(await aprovar(l.id))) break; // para no primeiro bloqueio (ex.: limite diário)
+      if (!(await aprovar(l.id))) break; // para no primeiro bloqueio
     }
     router.refresh();
   }
@@ -72,7 +74,7 @@ export function AprovarContatos({ leads, etapaPerdidoId }: { leads: LeadAprovar[
   return (
     <div className="space-y-2">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <span className="text-xs text-slate-500">Aprovar envia a mensagem de primeiro contato (Admin &gt; Agente). Os limites diários continuam valendo.</span>
+        <span className="text-xs text-slate-500">Aprovar coloca o primeiro contato na fila: sai um por vez, com intervalo aleatório e só no horário comercial (Admin &gt; WhatsApp). Os limites diários continuam valendo.</span>
         {restantes > 1 && (
           <button className="botao" disabled={!!ocupado} onClick={aprovarTodos}>
             <Check className="size-4" /> Aprovar todos ({restantes})
@@ -94,12 +96,12 @@ export function AprovarContatos({ leads, etapaPerdidoId }: { leads: LeadAprovar[
             </div>
             {feitos[l.id] ? (
               <span className={`selo ${feitos[l.id] === "aprovado" ? "bg-emerald-100 text-emerald-800" : "bg-slate-100 text-slate-600"}`}>
-                {feitos[l.id] === "aprovado" ? "Contato enviado" : "Descartado"}
+                {feitos[l.id] === "aprovado" ? `Agendado: ${horarios[l.id] ?? ""}` : "Descartado"}
               </span>
             ) : (
               <div className="flex gap-2">
                 <button className="botao" disabled={!!ocupado} onClick={() => aprovar(l.id)}>
-                  <Send className="size-4" /> {ocupado === l.id ? "Enviando..." : "Aprovar"}
+                  <Send className="size-4" /> {ocupado === l.id ? "Agendando..." : "Aprovar"}
                 </button>
                 {etapaPerdidoId && (
                   <button className="botao-sec" disabled={!!ocupado} onClick={() => descartar(l)} title="Mover para Perdido">
@@ -114,3 +116,47 @@ export function AprovarContatos({ leads, etapaPerdidoId }: { leads: LeadAprovar[
     </div>
   );
 }
+
+const horaCurta = (iso: string) => new Date(iso).toLocaleString("pt-BR", { weekday: "short", hour: "2-digit", minute: "2-digit" });
+
+/** Primeiros contatos na fila, com o horário de envio e a opção de cancelar. */
+export function EnviosAgendados({ itens }: { itens: Array<{ id: string; nome: string; cidade: string | null; segmento: string | null; quando: string }> }) {
+  const router = useRouter();
+  const [ocupado, setOcupado] = useState<string | null>(null);
+  const [erro, setErro] = useState<string | null>(null);
+
+  async function cancelar(id: string) {
+    setOcupado(id);
+    setErro(null);
+    try {
+      await chamarApi(`/api/leads/${id}/cancelar_agendamento`, { corpo: {} });
+      router.refresh();
+    } catch (e) {
+      setErro((e as Error).message);
+    } finally {
+      setOcupado(null);
+    }
+  }
+
+  if (!itens.length) return <p className="text-sm text-slate-500">Nenhum envio na fila.</p>;
+  return (
+    <div className="space-y-1">
+      <ul className="divide-y divide-slate-100">
+        {itens.map((l) => (
+          <li key={l.id} className="flex items-center gap-3 py-2 text-sm">
+            <span className="w-28 shrink-0 font-mono text-xs tabular-nums text-violet-700">{horaCurta(l.quando)}</span>
+            <div className="min-w-0 flex-1">
+              <Link href={`/leads/${l.id}`} className="font-medium text-marca-700 hover:underline">{l.nome}</Link>
+              <span className="ml-2 text-xs text-slate-500">{[l.segmento, l.cidade].filter(Boolean).join(" · ")}</span>
+            </div>
+            <button className="botao-sec" disabled={ocupado === l.id} onClick={() => cancelar(l.id)}>
+              <X className="size-4" /> Cancelar
+            </button>
+          </li>
+        ))}
+      </ul>
+      {erro && <p className="erro">{erro}</p>}
+    </div>
+  );
+}
+

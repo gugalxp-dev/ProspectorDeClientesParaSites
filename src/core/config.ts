@@ -158,6 +158,20 @@ export const esquemaWhatsapp = z.object({
   limiteDiarioMensagens: z.number().int().min(0).max(10_000).default(300),
   /** USD por template enviado, se você quiser estimar. null = sem estimativa. Confira na tabela da Meta. */
   precoTemplateUsd: z.number().min(0).nullable().default(null),
+
+  // ── Proteção do número (Baileys) ──
+  /** Pergunta ao WhatsApp se um número tem conta (fixos e telefones da busca por IA). Rajadas disso parecem robô. */
+  verificarNumeros: z.boolean().default(true),
+  verificacoesPorDia: z.number().int().min(0).max(500).default(40),
+  intervaloVerificacaoSeg: z.number().int().min(3).max(120).default(10),
+  /** Fila de primeiros contatos: intervalo aleatório entre um envio e outro (minutos). */
+  envioIntervaloMinMin: z.number().int().min(1).max(120).default(3),
+  envioIntervaloMaxMin: z.number().int().min(1).max(240).default(8),
+  /** Só envia primeiro contato dentro deste horário (hora cheia, horário do computador). */
+  horaInicio: z.number().int().min(0).max(23).default(9),
+  horaFim: z.number().int().min(1).max(24).default(18),
+  enviarSabado: z.boolean().default(true),
+  enviarDomingo: z.boolean().default(false),
 });
 
 export const esquemaLgpd = z.object({

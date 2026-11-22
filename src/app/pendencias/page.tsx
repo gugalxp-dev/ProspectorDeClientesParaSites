@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { AtualizarAoVivo } from "@/components/AoVivo";
 import { IndicadoresPendencias } from "@/components/IndicadoresPendencias";
-import { AprovarContatos } from "@/components/Pendencias";
+import { AprovarContatos, EnviosAgendados } from "@/components/Pendencias";
 import { Score, Titulo, dataHora } from "@/components/ui";
 import { listarPendencias } from "@/core/pendencias";
 import { exigirUsuario } from "@/lib/auth";
@@ -71,6 +71,11 @@ export default async function Pendencias() {
       <section id="aprovar" className="cartao p-4">
         <h2 className="mb-2 font-medium">Aprovar primeiro contato</h2>
         <AprovarContatos leads={p.aprovar} etapaPerdidoId={p.etapaPerdidoId} />
+      </section>
+
+      <section id="agendados" className="cartao p-4">
+        <h2 className="mb-2 font-medium">Envios agendados ({p.agendados.length})</h2>
+        <EnviosAgendados itens={p.agendados.map((a) => ({ ...a, quando: a.quando.toISOString() }))} />
       </section>
 
       <AtualizarAoVivo tipos={["lead.atualizado", "notificacao.nova", "mensagem.status", "busca.atualizada"]} />

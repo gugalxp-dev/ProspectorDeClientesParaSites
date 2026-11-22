@@ -10,7 +10,8 @@ import { aplicarRetencao } from "@/core/lgpd";
 import { aplicarFiltro } from "@/core/prospeccao/filtro";
 import { processarLead } from "@/core/prospeccao/processar";
 import { qualificarLead } from "@/core/prospeccao/qualificacao";
-import { EnvioBloqueado, processarEntrada, processarStatus } from "@/core/whatsapp/conversas";
+import { reagendarSeForaDoHorario } from "@/core/whatsapp/agendamento";
+import { EnvioBloqueado, iniciarContato, processarEntrada, processarStatus } from "@/core/whatsapp/conversas";
 import { receberEventos, payloadSimulado, type EntradaWhatsApp, type StatusWhatsApp } from "@/core/whatsapp/webhook";
 
 export type Manipulador = (payload: Record<string, unknown>) => Promise<void>;
@@ -53,6 +54,21 @@ export const MANIPULADORES: Record<string, Manipulador> = {
       await db.webhookEvento.update({ where: { id: ev.id }, data: { processadoEm: new Date(), erro: null } });
     } catch (e) {
       await db.webhookEvento.update({ where: { id: ev.id }, data: { erro: (e as Error).message.slice(0, 500) } });
+      throw e;
+    }
+  },
+
+  /** Primeiro contato da fila (Pendências > Aprovar): sai no horário agendado, um por vez. */
+  async contato_agendado(p) {
+    const leadId = String(p.leadId);
+    const usuarioId = String(p.usuarioId);
+    const lead = await db.lead.findUnique({ where: { id: leadId }, include: { conversa: { select: { id: true } } } });
+    if (!lead || lead.conversa || lead.naoContatar) return; // apagado, já contatado ou pediu para não receber
+    if (await reagendarSeForaDoHorario(leadId, usuarioId)) return; // worker ficou parado e passou do horário
+    try {
+      await iniciarContato(leadId, usuarioId);
+    } catch (e) {
+      if (e instanceof EnvioBloqueado) throw new ErroDefinitivo(e.message);
       throw e;
     }
   },

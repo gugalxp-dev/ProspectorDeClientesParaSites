@@ -7,6 +7,7 @@
 import { rm } from "node:fs/promises";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import makeWASocket, {
+  Browsers,
   DisconnectReason,
   fetchLatestBaileysVersion,
   isLidUser,
@@ -17,7 +18,9 @@ import makeWASocket, {
   type WASocket,
 } from "baileys";
 import QRCode from "qrcode";
+import { obterConfig } from "@/core/config";
 import { env } from "@/lib/env";
+import { dentroDoLimite } from "@/lib/limite";
 import { iguaisSeguro } from "@/lib/crypto";
 import { log, mensagemErro } from "@/lib/log";
 import { ErroWhatsApp, registrarClienteLocal, tokenPonteBaileys, type ClienteWhatsApp, type EstadoBaileys, type ResultadoEnvio } from "@/core/whatsapp/cliente";
@@ -124,7 +127,8 @@ async function aoAtualizar(atualizacoes: Array<{ key: WAMessage["key"]; update: 
 async function conectar(): Promise<void> {
   const { state, saveCreds } = await useMultiFileAuthState(PASTA_SESSAO);
   const { version } = await fetchLatestBaileysVersion().catch(() => ({ version: undefined }));
-  const s = makeWASocket({ auth: state, logger, version, markOnlineOnConnect: false, syncFullHistory: false, browser: ["Prospector", "Chrome", "1.0"] });
+  // Apresenta-se como um WhatsApp Web comum no Windows (nome incomum chama atenção).
+  const s = makeWASocket({ auth: state, logger, version, markOnlineOnConnect: false, syncFullHistory: false, browser: Browsers.windows("Chrome") });
   sock = s;
 
   s.ev.on("creds.update", saveCreds);
@@ -184,10 +188,28 @@ const clienteLocal: ClienteWhatsApp = {
   },
   async temWhatsApp(paraE164) {
     if (!sock || !estado.conectado) return null;
+    // Rajada de consultas parece robô para o WhatsApp: espaça e limita por dia (Admin > WhatsApp).
+    const cfg = await obterConfig("whatsapp");
+    if (!cfg.verificarNumeros) return null;
+    const vez = (ultimaVerificacao = ultimaVerificacao.then(async () => {
+      const espera = proximaVerificacaoEm - Date.now();
+      if (espera > 0) await new Promise((ok) => setTimeout(ok, espera));
+      proximaVerificacaoEm = Date.now() + cfg.intervaloVerificacaoSeg * 1000 * (0.8 + Math.random() * 0.4);
+    }));
+    await vez;
+    if (!(await dentroDoLimite("wa-verificacao", cfg.verificacoesPorDia, 24 * 3600_000))) {
+      log.info("baileys: limite diário de verificações de número atingido; seguindo sem verificar");
+      return null;
+    }
+    if (!sock || !estado.conectado) return null;
     const [r] = (await sock.onWhatsApp(paraE164.replace(/\D/g, ""))) ?? [];
     return !!r?.exists;
   },
 };
+
+// Fila das verificações de número: uma por vez, com intervalo.
+let ultimaVerificacao: Promise<void> = Promise.resolve();
+let proximaVerificacaoEm = 0;
 
 // ───────────── Ponte HTTP (só 127.0.0.1) ─────────────
 
