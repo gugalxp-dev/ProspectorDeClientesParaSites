@@ -7,6 +7,7 @@ import { obterConfig } from "@/core/config";
 import { garantirEtapas } from "@/core/crm/etapas";
 import { prepararBanco } from "@/core/db";
 import { enfileirar, recuperarTravados, reservar } from "@/core/fila";
+import { modoWhatsApp } from "@/core/whatsapp/cliente";
 import { log, mensagemErro } from "@/lib/log";
 import { executarJob } from "./executar";
 
@@ -56,6 +57,9 @@ async function agendarManutencao() {
 async function principal() {
   await prepararBanco();
   await garantirEtapas();
+  // WhatsApp via Baileys: o socket vive aqui no worker (import dinâmico: só carrega a lib se for usar).
+  let encerrarBaileys: (() => Promise<void>) | null = null;
+  if ((await modoWhatsApp()) === "baileys") encerrarBaileys = await (await import("./baileys")).iniciarBaileys();
   log.info("worker iniciado");
   let ultimaRecuperacao = 0;
   while (!parando) {
@@ -75,6 +79,7 @@ async function principal() {
   }
   log.info("worker parando: aguardando trabalhos em andamento", { quantidade: emExecucao.size });
   await Promise.allSettled([...emExecucao]);
+  await encerrarBaileys?.();
   process.exit(0);
 }
 

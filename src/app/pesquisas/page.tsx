@@ -2,6 +2,7 @@ import Link from "next/link";
 import { AtualizarAoVivo } from "@/components/AoVivo";
 import { NovaPesquisa } from "@/components/NovaPesquisa";
 import { CancelarPesquisa } from "@/components/CancelarPesquisa";
+import { ExcluirPesquisa } from "@/components/ExcluirPesquisa";
 import { Barra, Titulo, Vazio, dataHora, usd } from "@/components/ui";
 import { listarBuscas } from "@/core/busca";
 import { obterConfig } from "@/core/config";
@@ -66,11 +67,16 @@ export default async function Pesquisas() {
                   </td>
                   <td className="text-right tabular-nums">{b.encontradas}</td>
                   <td className="text-right tabular-nums">{b.analisadas}</td>
-                  <td className="text-right tabular-nums">{b.qualificadas}</td>
+                  <td className={`text-right text-base font-bold tabular-nums ${b.qualificadas ? "text-emerald-600" : "text-slate-400"}`}>{b.qualificadas}</td>
                   <td className={`text-right tabular-nums ${b.erros ? "text-rose-700" : ""}`}>{b.erros}</td>
                   <td className="text-right text-xs tabular-nums text-slate-500">{usd(b.custoUsd)}</td>
                   <td className="whitespace-nowrap text-xs text-slate-500">{dataHora(b.criadoEm)}</td>
-                  <td>{["pendente", "descobrindo", "processando"].includes(b.status) && <CancelarPesquisa id={b.id} />}</td>
+                  <td className="whitespace-nowrap">
+                    <div className="flex flex-col items-end gap-1">
+                      {["pendente", "descobrindo", "processando"].includes(b.status) && <CancelarPesquisa id={b.id} />}
+                      <ExcluirPesquisa id={b.id} nome={`${b.nicho} — ${b.cidade}`} />
+                    </div>
+                  </td>
                 </tr>
               ))}
             </tbody>

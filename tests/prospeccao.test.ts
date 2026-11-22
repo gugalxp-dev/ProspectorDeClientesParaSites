@@ -149,6 +149,23 @@ describe("avaliação do site", () => {
     expect(siteComProblemas(a)).toBe(false);
   });
 
+  it("redireciona para a mesma marca em outro domínio (site regional): está no ar", () => {
+    const a = avaliarSite(
+      { inicial: "https://www.subway.com", urlFinal: "https://www.subway.com.br/", paginas: [{ url: "https://www.subway.com.br/", profundidade: 0, status: 200, ms: 5, html: "<title>Subway</title>" }], bloqueadoPorRobots: false, certificadoFalhou: false },
+      extrairDadosSite([], ""),
+    );
+    expect(a.online).toBe(true);
+  });
+
+  it("site que bloqueia robôs (403) está no ar e não gera problemas falsos", () => {
+    const a = avaliarSite(
+      { inicial: "https://www.burgerking.com.br", urlFinal: "https://www.burgerking.com.br/", paginas: [{ url: "https://www.burgerking.com.br/", profundidade: 0, status: 403, ms: 5, html: "<title>Access Denied</title>" }], bloqueadoPorRobots: false, certificadoFalhou: false },
+      extrairDadosSite([], ""),
+    );
+    expect(a.online).toBe(true);
+    expect(a.problemas).toEqual([]);
+  });
+
   it("domínio que redireciona para outro site conta como fora do ar", () => {
     const a = avaliarSite(
       { inicial: "https://antigo.com.br", urlFinal: "https://cassino.com/", paginas: [{ url: "https://antigo.com.br", profundidade: 0, status: 200, ms: 5, html: "x" }], bloqueadoPorRobots: false, certificadoFalhou: false },
@@ -175,5 +192,30 @@ describe("deduplicação e pontuação", () => {
     expect(p.total).toBe(35 + 20 + 5 + 10);
     expect(p.itens.map((i) => i.motivo)).toContain("Nenhum site identificado");
     expect(detalharPontuacao({ presenca: "sem_site_identificado", ehCelular: true, naoContatar: true }).total).toBe(0);
+  });
+});
+
+describe("filtro da prospecção", async () => {
+  const { ehRede, motivoIgnorarNaImportacao, motivoDescarte } = await import("../src/core/prospeccao/filtro");
+  const cfg = { exigirCelular: true, descartarComSiteBom: true, ignorarRedes: true, redesIgnoradas: ["McDonald's", "Burger King", "Bob's"] };
+
+  it("reconhece redes pelo nome, sem confundir com nomes parecidos", () => {
+    expect(ehRede("McDonald's - Guarujá", cfg.redesIgnoradas)).toBe(true);
+    expect(ehRede("BURGER KING Enseada", cfg.redesIgnoradas)).toBe(true);
+    expect(ehRede("Bobs", cfg.redesIgnoradas)).toBe(true);
+    expect(ehRede("Kings Burger Artesanal", cfg.redesIgnoradas)).toBe(false);
+  });
+
+  it("não registra rede (marca no OSM) nem fixo sem site; registra celular", () => {
+    expect(motivoIgnorarNaImportacao({ nome: "Lanchonete X", rede: "Habib's", ehCelular: true, temSite: false }, cfg)).toMatch(/Rede/);
+    expect(motivoIgnorarNaImportacao({ nome: "Pizzaria do Zé", ehCelular: false, temSite: false }, cfg)).toMatch(/fixo/);
+    expect(motivoIgnorarNaImportacao({ nome: "Pizzaria do Zé", ehCelular: false, temSite: true }, cfg)).toBeNull();
+    expect(motivoIgnorarNaImportacao({ nome: "Pizzaria do Zé", ehCelular: true, temSite: false }, cfg)).toBeNull();
+  });
+
+  it("depois da visita: fixo sem celular no site é descartado; WhatsApp do site salva", () => {
+    const base = { nome: "Pizzaria do Zé", presenca: "sem_site_identificado", siteAvaliacao: null };
+    expect(motivoDescarte({ ...base, ehCelular: false, whatsappE164: null }, cfg)).toMatch(/fixo/);
+    expect(motivoDescarte({ ...base, ehCelular: false, whatsappE164: "+5513988880001" }, cfg)).toBeNull();
   });
 });

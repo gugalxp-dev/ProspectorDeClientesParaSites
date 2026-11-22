@@ -156,6 +156,7 @@ model Lead {
   interacoes    InteracaoLead[]
   consentimentos Consentimento[]
   conversa      Conversa?
+  contratos     Contrato[]
 
   @@index([telefoneE164])
   @@index([dominio])
@@ -408,4 +409,34 @@ model LogOperacao {
 
   @@index([buscaId, nivel])
   @@index([criadoEm])
+}
+
+/// Contrato gerado a partir do modelo único (Admin > Contrato). Sem IA: só os dados essenciais mudam.
+/// Fluxo: rascunho -> pronto (texto congelado, link criado) -> enviado -> visualizado -> aceito | cancelado.
+model Contrato {
+  id             String    @id @default(cuid())
+  numero         String    @unique
+  leadId         String
+  lead           Lead      @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  status         String    @default("rascunho")
+  dados          String // JSON com os dados essenciais (contratante, serviço, valor, prazo, pagamento)
+  conteudo       String? // texto final, congelado ao finalizar (é o que o cliente aceita)
+  conteudoHash   String? // SHA-256 do conteúdo aceito
+  tokenHash      String?   @unique // HMAC do token do link público
+  tokenCifrado   String? // para o painel mostrar o link de novo
+  criadoPorId    String?
+  finalizadoEm   DateTime?
+  enviadoEm      DateTime?
+  visualizadoEm  DateTime?
+  aceitoEm       DateTime?
+  aceiteNome     String?
+  aceiteDocumento String?
+  aceiteIp       String?
+  aceiteNavegador String?
+  canceladoEm    DateTime?
+  criadoEm       DateTime  @default(now())
+  atualizadoEm   DateTime  @updatedAt
+
+  @@index([leadId])
+  @@index([status])
 }

@@ -67,6 +67,8 @@ export interface LugarBruto {
   emails?: string[];
   instagram?: string;
   facebook?: string;
+  /** Marca da rede/franquia, quando a fonte informa (OSM: brand). */
+  rede?: string;
   /** false quando a fonte marca o negócio como fechado. */
   ativo?: boolean;
 }

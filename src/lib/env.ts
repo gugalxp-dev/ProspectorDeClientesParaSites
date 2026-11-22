@@ -17,7 +17,9 @@ const esquema = z.object({
   OPENAI_API_KEY: opcional,
   OPENAI_BASE_URL: z.preprocess(vazioComoUndefined, z.string().url().default("https://api.openai.com/v1")),
 
-  WHATSAPP_MODO: z.preprocess(vazioComoUndefined, z.enum(["cloud", "mock"]).optional()),
+  WHATSAPP_MODO: z.preprocess(vazioComoUndefined, z.enum(["cloud", "baileys", "mock"]).optional()),
+  /** Porta local (só 127.0.0.1) em que o worker expõe a conexão Baileys para o painel. */
+  BAILEYS_PORTA: z.preprocess(vazioComoUndefined, z.coerce.number().int().min(1024).max(65535).default(3011)),
   WHATSAPP_TOKEN: opcional,
   WHATSAPP_PHONE_NUMBER_ID: opcional,
   WHATSAPP_BUSINESS_ACCOUNT_ID: opcional,
@@ -25,8 +27,6 @@ const esquema = z.object({
   WHATSAPP_VERIFY_TOKEN: opcional,
   WHATSAPP_API_VERSION: z.preprocess(vazioComoUndefined, z.string().regex(/^v\d+\.\d+$/).default("v23.0")),
 
-  GOOGLE_PLACES_API_KEY: opcional,
-  MOTOR_URL: z.preprocess(vazioComoUndefined, z.string().default("http://localhost:8080")),
   CRAWLER_CONTATO: opcional,
 });
 

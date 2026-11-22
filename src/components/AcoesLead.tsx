@@ -56,7 +56,7 @@ export function AutorizacaoContato(p: { id: string; contatoStatus: string; telef
     <section className="cartao space-y-3 p-4 text-sm">
       <h2 className="font-medium">Contato e consentimento</h2>
       <p className="text-xs text-slate-600">
-        Telefone público não é autorização. O agente só inicia conversa com opt-in registrado (origem e base legal), e sempre por template aprovado pela Meta.
+        Sem autorização registrada, &quot;Iniciar contato&quot; registra sozinho a base legal de legítimo interesse (contato comercial B2B). Opt-out bloqueia tudo, sempre.
       </p>
 
       {p.contatoStatus === "opt_out" ? (
@@ -68,11 +68,9 @@ export function AutorizacaoContato(p: { id: string; contatoStatus: string; telef
               <ShieldCheck className="size-4" /> Registrar autorização
             </button>
           )}
-          {p.contatoStatus === "autorizado" && (
-            <button className="botao" disabled={a.ocupado} onClick={() => a.rodar(() => chamarApi(`/api/leads/${p.id}/contato`, { corpo: {} }), "Primeiro contato enviado.")}>
-              <Send className="size-4" /> {p.temConversa ? "Enviar template de novo" : "Iniciar contato (template)"}
-            </button>
-          )}
+          <button className="botao" disabled={a.ocupado} onClick={() => a.rodar(() => chamarApi(`/api/leads/${p.id}/contato`, { corpo: {} }), "Primeiro contato enviado.")}>
+            <Send className="size-4" /> {p.temConversa ? "Enviar primeiro contato de novo" : "Iniciar contato"}
+          </button>
           <button className="botao-perigo" onClick={() => setModo("optout")}>
             <ShieldOff className="size-4" /> Registrar opt-out
           </button>

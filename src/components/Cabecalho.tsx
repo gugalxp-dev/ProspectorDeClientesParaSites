@@ -64,13 +64,17 @@ export function Notificacoes() {
             {lista.map((n) => (
               <li key={n.id} className={`border-b border-slate-100 px-3 py-2 text-sm ${n.lidaEm ? "text-slate-500" : ""}`}>
                 <div className="flex items-start justify-between gap-2">
-                  <span className={`font-medium ${n.tipo === "transferencia" ? "text-rose-700" : ""}`}>{n.titulo}</span>
+                  <span className={`font-medium ${n.tipo === "transferencia" ? "text-rose-700" : n.tipo === "aceite" ? "text-emerald-700" : ""}`}>{n.titulo}</span>
                   <span className="shrink-0 text-xs text-slate-400">{dataHora(n.criadoEm)}</span>
                 </div>
                 <p className="mt-0.5 line-clamp-3 text-xs">{n.mensagem}</p>
                 {n.leadId && (
-                  <Link href={`/leads/${n.leadId}`} className="text-xs text-marca-600 hover:underline" onClick={() => setAberto(false)}>
-                    Abrir lead
+                  <Link
+                    href={n.tipo === "aceite" ? `/leads/${n.leadId}?contrato=1#contrato` : `/leads/${n.leadId}`}
+                    className={`text-xs hover:underline ${n.tipo === "aceite" ? "font-semibold text-emerald-700" : "text-marca-600"}`}
+                    onClick={() => setAberto(false)}
+                  >
+                    {n.tipo === "aceite" ? "Gerar contrato" : "Abrir lead"}
                   </Link>
                 )}
               </li>

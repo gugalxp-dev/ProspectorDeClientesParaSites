@@ -15,6 +15,8 @@ export interface FiltrosLead {
   qualificacao?: string;
   scoreMin?: number;
   buscaId?: string;
+  /** Mostra também os de baixo potencial (desqualificados). Padrão: escondidos. */
+  incluirBaixo?: boolean;
 }
 
 export function whereLeads(f: FiltrosLead): Prisma.LeadWhereInput {
@@ -26,6 +28,7 @@ export function whereLeads(f: FiltrosLead): Prisma.LeadWhereInput {
   if (f.qualificacao) e.push({ qualificacaoStatus: f.qualificacao });
   if (f.scoreMin != null) e.push({ score: { gte: f.scoreMin } });
   if (f.buscaId) e.push({ buscas: { some: { buscaId: f.buscaId } } });
+  if (!f.incluirBaixo) e.push({ qualificacaoStatus: { notIn: ["desqualificado", "descartado"] } });
   return { AND: e };
 }
 

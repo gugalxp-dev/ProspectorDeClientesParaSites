@@ -36,7 +36,7 @@ export default async function Integracoes() {
       <section className="cartao space-y-3 p-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h2 className="font-medium">WhatsApp Business Cloud API (Meta)</h2>
-          <span className={`selo ${wa === "cloud" ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"}`}>{wa === "cloud" ? "Modo real (cloud)" : "Modo simulado (mock)"}</span>
+          <span className={`selo ${wa === "mock" ? "bg-amber-100 text-amber-800" : "bg-emerald-100 text-emerald-800"}`}>{{ cloud: "Modo real (cloud)", baileys: "Modo real (Baileys, QR em Admin > WhatsApp)", mock: "Modo simulado (mock)" }[wa]}</span>
         </div>
         <div className="rounded-md bg-slate-50 p-3 text-xs text-slate-700">
           <p className="font-medium">Configuração do webhook no Meta Developers (WhatsApp &gt; Configuração):</p>
@@ -49,10 +49,6 @@ export default async function Integracoes() {
         <TestarIntegracao integracao="whatsapp" />
       </section>
 
-      <section className="cartao space-y-3 p-4">
-        <h2 className="font-medium">Outras (opcionais)</h2>
-        <Credenciais itens={visiveis.filter((c) => c.grupo === "prospeccao")} />
-      </section>
     </>
   );
 }

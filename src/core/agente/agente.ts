@@ -198,7 +198,8 @@ export async function responderConversa(conversaId: string, mensagemId: string):
     } catch (e) {
       if (!(e instanceof EnvioBloqueado)) throw e;
     }
-    await transferirParaHumano(conversaId, motivo, { agente: true });
+    // Aceite vira pendência "Gerar contrato" (e notificação própria), separada das outras transferências.
+    await transferirParaHumano(conversaId, motivo, { agente: true, aceite: d.intencao === "aceite" && cfgT.aoAceitarProposta });
     return { acao: "transferida", motivo };
   }
 

@@ -13,6 +13,7 @@ import { cancelarJobsDaBusca, enfileirar, ErroDefinitivo } from "./fila";
 import { fonte } from "./fontes";
 import { FonteIndisponivel } from "./fontes/tipos";
 import { geocodificar } from "./geocode";
+import { intocado } from "./prospeccao/filtro";
 import { importarLugares } from "./prospeccao/importar";
 import type { StatusBusca } from "./tipos";
 
@@ -71,6 +72,40 @@ export async function cancelarBusca(id: string): Promise<void> {
   await emitir("busca.atualizada", { id });
 }
 
+/** Empresas que sairiam junto: só desta pesquisa e ainda não contatadas (ninguém mexeu nelas). */
+async function leadsSoDestaBusca(id: string): Promise<string[]> {
+  const ligados = await db.buscaLead.findMany({
+    where: { buscaId: id },
+    select: { lead: { select: { id: true, contatoStatus: true, etapaId: true, conversa: { select: { id: true } }, contratos: { select: { id: true } }, _count: { select: { buscas: true } } } } },
+  });
+  const ids: string[] = [];
+  for (const { lead } of ligados) {
+    if (lead._count.buscas === 1 && lead.contratos.length === 0 && (await intocado(lead))) ids.push(lead.id);
+  }
+  return ids;
+}
+
+export async function previaExclusao(id: string): Promise<{ empresas: number }> {
+  return { empresas: (await leadsSoDestaBusca(id)).length };
+}
+
+/**
+ * Exclui a pesquisa e as empresas encontradas só por ela que ainda não foram contatadas.
+ * Ficam: empresas em negociação/contatadas/com contrato, as que outra pesquisa também achou e o histórico de gastos.
+ */
+export async function excluirBusca(id: string): Promise<{ empresasApagadas: number }> {
+  await cancelarJobsDaBusca(id);
+  const ids = await leadsSoDestaBusca(id);
+  await db.registroCusto.updateMany({ where: { OR: [{ buscaId: id }, { leadId: { in: ids } }] }, data: { buscaId: null, leadId: null } });
+  await db.lead.deleteMany({ where: { id: { in: ids } } });
+  await db.job.deleteMany({ where: { buscaId: id } });
+  await db.logOperacao.deleteMany({ where: { buscaId: id } });
+  await db.busca.delete({ where: { id } });
+  await emitir("busca.atualizada", { id, removida: true });
+  await emitir("lead.atualizado", { removidos: ids.length });
+  return { empresasApagadas: ids.length };
+}
+
 export interface ResumoBusca {
   id: string;
   nicho: string;
@@ -84,6 +119,7 @@ export interface ResumoBusca {
   novas: number;
   analisadas: number;
   qualificadas: number;
+  descartadas: number;
   erros: number;
   progresso: number;
   jobs: { total: number; pendentes: number; rodando: number; ok: number; falhou: number };
@@ -93,10 +129,11 @@ export interface ResumoBusca {
 export async function resumoBusca(id: string): Promise<ResumoBusca | null> {
   const b = await db.busca.findUnique({ where: { id } });
   if (!b) return null;
-  const [encontradas, analisadas, qualificadas, erros, jobs, custo] = await Promise.all([
+  const [encontradas, analisadas, qualificadas, descartadas, erros, jobs, custo] = await Promise.all([
     db.buscaLead.count({ where: { buscaId: id } }),
-    db.buscaLead.count({ where: { buscaId: id, lead: { qualificacaoStatus: { in: ["qualificado", "desqualificado", "erro"] } } } }),
+    db.buscaLead.count({ where: { buscaId: id, lead: { qualificacaoStatus: { in: ["qualificado", "desqualificado", "erro", "descartado"] } } } }),
     db.buscaLead.count({ where: { buscaId: id, lead: { qualificacaoStatus: "qualificado" } } }),
+    db.logOperacao.count({ where: { buscaId: id, etapa: "filtro" } }),
     db.logOperacao.count({ where: { buscaId: id, nivel: "erro" } }),
     db.job.groupBy({ by: ["status"], where: { buscaId: id }, _count: true }),
     db.registroCusto.aggregate({ _sum: { custoUsd: true }, where: { buscaId: id } }),
@@ -117,6 +154,7 @@ export async function resumoBusca(id: string): Promise<ResumoBusca | null> {
     novas: b.novas,
     analisadas,
     qualificadas,
+    descartadas,
     erros,
     progresso: b.status === "concluida" ? 100 : total ? Math.round((feitos / total) * 100) : 0,
     jobs: { total, pendentes: conta("pendente"), rodando: conta("rodando"), ok: conta("ok"), falhou: conta("falhou") },

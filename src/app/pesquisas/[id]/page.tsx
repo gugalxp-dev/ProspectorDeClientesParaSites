@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ExcluirPesquisa } from "@/components/ExcluirPesquisa";
 import { notFound } from "next/navigation";
 import { AtualizarAoVivo } from "@/components/AoVivo";
 import { Barra, Score, SeloPresenca, SeloQualificacao, Titulo, Vazio, dataHora, usd } from "@/components/ui";
@@ -37,7 +38,7 @@ export default async function Pesquisa({ params, searchParams }: { params: Promi
 
   return (
     <div className="space-y-6">
-      <Titulo>
+      <Titulo acoes={<ExcluirPesquisa id={r.id} nome={`${r.nicho} — ${r.cidade}`} voltarPara="/pesquisas" />}>
         {r.nicho} — {r.cidade}
       </Titulo>
       <div className="cartao grid gap-4 p-4 sm:grid-cols-3 lg:grid-cols-7">
@@ -47,16 +48,21 @@ export default async function Pesquisa({ params, searchParams }: { params: Promi
           <div className="mt-1 text-xs text-slate-500">{r.progresso}% · fontes: {r.fontes.join(", ")}</div>
           {r.erro && <p className="erro mt-2">{r.erro}</p>}
         </div>
-        {[
-          ["Encontradas", r.encontradas],
-          ["Novas", r.novas],
-          ["Analisadas", r.analisadas],
-          ["Qualificadas", r.qualificadas],
-          ["Erros", r.erros],
-        ].map(([t, v]) => (
-          <div key={t}>
+        <div className="sm:col-span-1 lg:col-span-2">
+          <div className="text-xs font-medium text-slate-500">Qualificadas (prontas para contato)</div>
+          <div className="text-4xl font-bold tabular-nums text-emerald-600">{r.qualificadas}</div>
+          <Link href={`/crm?buscaId=${r.id}`} className="text-xs text-marca-600 hover:underline">Ver no CRM</Link>
+        </div>
+        {(
+          [
+            ["Encontradas", r.encontradas, ""],
+            ["Ignoradas", r.descartadas, "Rede/franquia, sem celular/WhatsApp ou já com site bom"],
+            ["Erros", r.erros, ""],
+          ] as const
+        ).map(([t, v, dica]) => (
+          <div key={t} title={dica}>
             <div className="text-xs text-slate-500">{t}</div>
-            <div className="text-xl font-semibold tabular-nums">{v}</div>
+            <div className={`text-xl font-semibold tabular-nums ${t === "Erros" && v ? "text-rose-700" : "text-slate-600"}`}>{v}</div>
           </div>
         ))}
       </div>

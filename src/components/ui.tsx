@@ -48,6 +48,7 @@ const STATUS_Q: Record<string, [string, string]> = {
   qualificado: ["Qualificado", "bg-emerald-100 text-emerald-800"],
   desqualificado: ["Baixo potencial", "bg-slate-100 text-slate-600"],
   erro: ["Erro na análise", "bg-rose-100 text-rose-800"],
+  descartado: ["Descartado", "bg-zinc-200 text-zinc-700"],
 };
 
 export function SeloQualificacao({ status }: { status: string }) {

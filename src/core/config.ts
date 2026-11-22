@@ -69,6 +69,11 @@ export const esquemaAgente = z.object({
   mensagemOptOut: z.string().max(500).default("Tudo bem, não enviaremos mais mensagens. Obrigado pela atenção!"),
   templatePrimeiroContato: z.string().max(512).default(""),
   idiomaTemplate: z.string().max(10).default("pt_BR"),
+  /** Modo Baileys (sem templates da Meta): texto do primeiro contato. Aceita {nome}, {agente} e {empresa}. */
+  mensagemPrimeiroContato: z
+    .string()
+    .max(1000)
+    .default("Olá! Tudo bem? Aqui é {agente}, da {empresa}. Trabalhamos com sites para empresas como a {nome}. Posso te mostrar uma ideia rápida?"),
   /** Quantas mensagens do histórico vão no contexto. */
   historicoMaximo: z.number().int().min(4).max(60).default(20),
   trechosConhecimento: z.number().int().min(1).max(12).default(5),
@@ -88,8 +93,6 @@ export const esquemaTransferencia = z.object({
 export const esquemaProspeccao = z.object({
   fontes: z.record(z.string(), z.object({ ativa: z.boolean() })).default({
     osm: { ativa: true },
-    gmaps: { ativa: false },
-    places: { ativa: false },
   }),
   maxEmpresasPorBusca: z.number().int().min(10).max(2000).default(300),
   buscasSimultaneas: z.number().int().min(1).max(10).default(3),
@@ -104,14 +107,27 @@ export const esquemaProspeccao = z.object({
     })
     .default({ profundidade: 2, maxPaginasPorSite: 6, concorrencia: 4, atrasoPorHostMs: 1000, timeoutMs: 10_000, respeitarRobots: true }),
   qualificarAutomaticamente: z.boolean().default(true),
+  /** Só prospecta quem tem celular ou WhatsApp (fixo não tem WhatsApp). Os outros nem são registrados. */
+  exigirCelular: z.boolean().default(true),
+  /** Descarta empresas com site no ar e sem problemas técnicos: não precisam de site novo. */
+  descartarComSiteBom: z.boolean().default(true),
+  /** Ignora redes e franquias (marca no OpenStreetMap ou nome na lista abaixo): não compram site local. */
+  ignorarRedes: z.boolean().default(true),
+  redesIgnoradas: z
+    .array(z.string().max(60))
+    .default([
+      "McDonald's", "Burger King", "Subway", "Domino's", "Pizza Hut", "Habib's", "Bob's", "KFC", "Popeyes", "Giraffas", "Spoleto",
+      "China in Box", "Outback", "Madero", "Jeronimo", "Starbucks", "Cacau Show", "Kopenhagen", "Ragazzo", "Divino Fogão", "Coco Bambu",
+      "Applebee's", "Chiquinho Sorvetes", "Oakberry", "Montana Grill", "Mania de Churrasco", "Gendai", "Taco Bell", "Burger King Express",
+      "Casa do Pão de Queijo", "Fran's Café", "Rei do Mate", "The Best Açaí", "Vivenda do Camarão", "Pizza Hut Express", "Jin Jin", "Griletto",
+      "Frango Assado", "Café do Ponto", "Dunkin", "Johnny Rockets", "Wendy's", "Tim Hortons", "Ofner", "Bacio di Latte", "Sodiê Doces",
+    ]),
   scoreMinimoQualificado: z.number().int().min(0).max(100).default(50),
   /** Score final = regras x (100 - pesoIaPct)% + IA x pesoIaPct%. */
   pesoIaPct: z.number().int().min(0).max(100).default(50),
   reverificarSiteAposDias: z.number().int().min(1).max(365).default(30),
   /** Procura o site oficial pelo nome quando a fonte não traz (domínios prováveis + confirmação na página). */
   inferirSite: z.boolean().default(true),
-  /** Google Places: preço por requisição de Text Search (com telefone e site = SKU Enterprise). */
-  custoPlacesPorRequisicaoUsd: z.number().min(0).max(1).default(0.035),
 });
 
 export const esquemaPesos = z.object({
@@ -138,6 +154,24 @@ export const esquemaLgpd = z.object({
   retencaoDiasLogs: z.number().int().min(7).max(3650).default(90),
 });
 
+
+export const esquemaContrato = z.object({
+  /** Dados da sua empresa (contratada): iguais em todos os contratos. */
+  contratadaNome: z.string().max(200).default(""),
+  contratadaDocumento: z.string().max(30).default(""),
+  contratadaEndereco: z.string().max(300).default(""),
+  contratadaEmail: z.string().max(200).default(""),
+  cidade: z.string().max(100).default(""),
+  foro: z.string().max(100).default(""),
+  /** Modelo único. Variáveis: {{numero}}, {{contratante_nome}}, {{valor}}... (lista em Admin > Contrato). */
+  modelo: z.string().max(30_000).default("# CONTRATO DE PRESTAÇÃO DE SERVIÇOS DE CRIAÇÃO DE SITE\nContrato nº {{numero}}\n\n## PARTES\nCONTRATADA: {{contratada_nome}}, inscrita no CPF/CNPJ sob o nº {{contratada_documento}}, com endereço em {{contratada_endereco}}, e-mail {{contratada_email}}.\n\nCONTRATANTE: {{contratante_nome}}, inscrito(a) no CPF/CNPJ sob o nº {{contratante_documento}}, com endereço em {{contratante_endereco}}, telefone {{contratante_telefone}}, e-mail {{contratante_email}}.\n\n## CLÁUSULA 1 — OBJETO\nA CONTRATADA prestará ao CONTRATANTE o serviço de {{servico}}: {{descricao_servico}}\n\n## CLÁUSULA 2 — PRAZO\nO serviço será entregue em até {{prazo_dias}} dias corridos, contados a partir do recebimento do pagamento inicial e de todo o material necessário (textos, fotos, logotipo e acessos) enviado pelo CONTRATANTE. Atrasos no envio desse material prorrogam o prazo pelo mesmo período.\n\n## CLÁUSULA 3 — VALOR E PAGAMENTO\nPelo serviço, o CONTRATANTE pagará o valor total de {{valor}}, da seguinte forma: {{forma_pagamento}}.\n\n## CLÁUSULA 4 — OBRIGAÇÕES DA CONTRATADA\na) Executar o serviço com qualidade técnica e dentro do prazo; b) manter o CONTRATANTE informado sobre o andamento; c) realizar até 2 (duas) rodadas de ajustes sobre o layout aprovado, sem custo adicional.\n\n## CLÁUSULA 5 — OBRIGAÇÕES DO CONTRATANTE\na) Fornecer as informações e materiais necessários; b) aprovar ou pedir ajustes em até 5 (cinco) dias úteis após cada entrega; c) efetuar os pagamentos nas datas combinadas.\n\n## CLÁUSULA 6 — DOMÍNIO, HOSPEDAGEM E PROPRIEDADE\nCustos de domínio e hospedagem, quando não incluídos no objeto, são de responsabilidade do CONTRATANTE. Após a quitação integral, o site e seu conteúdo passam a ser de propriedade do CONTRATANTE.\n\n## CLÁUSULA 7 — RESCISÃO\nQualquer parte pode rescindir este contrato mediante aviso por escrito. Os valores referentes às etapas já executadas não serão devolvidos.\n\n## CLÁUSULA 8 — OBSERVAÇÕES\n{{observacoes}}\n\n## CLÁUSULA 9 — FORO\nFica eleito o foro da comarca de {{foro}} para dirimir quaisquer dúvidas oriundas deste contrato.\n\nO aceite eletrônico deste contrato, com registro de data, hora, nome, documento e endereço IP, tem a mesma validade de uma assinatura.\n\n{{cidade_contratada}}, {{data}}."),
+  /** Mensagem do WhatsApp com o link. Aceita {{nome}}, {{link}} e {{numero}}. */
+  mensagemEnvio: z
+    .string()
+    .max(1000)
+    .default("Olá, {{nome}}! Segue o contrato nº {{numero}} para você ler com calma. Se estiver tudo certo, é só confirmar o aceite no próprio link: {{link}}"),
+});
+
 export const SECOES = {
   ia: esquemaIa,
   agente: esquemaAgente,
@@ -146,6 +180,7 @@ export const SECOES = {
   pesos: esquemaPesos,
   whatsapp: esquemaWhatsapp,
   lgpd: esquemaLgpd,
+  contrato: esquemaContrato,
 } as const;
 
 export type Secao = keyof typeof SECOES;

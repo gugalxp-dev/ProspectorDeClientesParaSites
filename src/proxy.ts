@@ -7,7 +7,9 @@ const PUBLICAS = ["/entrar"];
 
 export function proxy(req: NextRequest) {
   const { pathname, search } = req.nextUrl;
-  if (!PUBLICAS.includes(pathname) && !req.cookies.has("pcs_sessao")) {
+  // /contrato/<token>: página que o cliente abre pelo link (o token é a autorização).
+  const publica = PUBLICAS.includes(pathname) || pathname.startsWith("/contrato/");
+  if (!publica && !req.cookies.has("pcs_sessao")) {
     const url = req.nextUrl.clone();
     url.pathname = "/entrar";
     url.search = pathname === "/" ? "" : `?voltar=${encodeURIComponent(pathname + search)}`;

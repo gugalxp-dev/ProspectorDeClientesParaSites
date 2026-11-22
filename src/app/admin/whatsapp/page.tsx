@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ConexaoBaileys } from "@/components/admin/ConexaoBaileys";
 import { TestarIntegracao } from "@/components/admin/Integracoes";
 import { FormConfig } from "@/components/admin/FormConfig";
 import { Titulo, dataHora } from "@/components/ui";
@@ -27,10 +28,17 @@ export default async function AdminWhatsapp() {
       <section className="cartao space-y-3 p-4 text-sm">
         <div className="flex flex-wrap items-center gap-2">
           <h2 className="font-medium">Estado da conexão</h2>
-          <span className={`selo ${modo === "cloud" ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"}`}>{modo === "cloud" ? "Cloud API (real)" : "Simulado (mock)"}</span>
+          <span className={`selo ${modo === "mock" ? "bg-amber-100 text-amber-800" : "bg-emerald-100 text-emerald-800"}`}>{{ cloud: "Cloud API (real)", baileys: "Baileys (real, não oficial)", mock: "Simulado (mock)" }[modo]}</span>
           <Link href="/admin/integracoes" className="ml-auto text-marca-700 hover:underline">Credenciais e webhook</Link>
         </div>
-        <TestarIntegracao integracao="whatsapp" />
+        {modo === "baileys" ? (
+          <>
+            <p className="text-xs text-amber-700">Baileys não é oficial: a Meta pode banir o número. Use um número dedicado e mantenha os limites baixos.</p>
+            <ConexaoBaileys />
+          </>
+        ) : (
+          <TestarIntegracao integracao="whatsapp" />
+        )}
         <p className="text-xs text-slate-500">Enviadas hoje: {enviadasHoje} de {cfg.limiteDiarioMensagens} · webhooks aguardando processamento: {pendentesWebhook}</p>
       </section>
 

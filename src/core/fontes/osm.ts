@@ -138,6 +138,7 @@ export function elementoParaLugar(el: ElementoOsm, cidadePadrao: string): LugarB
     emails: email ? [email.toLowerCase()] : [],
     instagram: instagram ? (instagram.startsWith("http") ? instagram : `https://instagram.com/${instagram.replace(/^@/, "")}`) : undefined,
     facebook: facebook ? (facebook.startsWith("http") ? facebook : `https://facebook.com/${facebook}`) : undefined,
+    rede: t.brand ?? (t["brand:wikidata"] ? t.name : undefined),
     ativo: !t["disused:shop"] && !t["was:shop"],
   };
 }

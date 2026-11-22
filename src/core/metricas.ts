@@ -32,6 +32,9 @@ export async function metricas() {
     custoMes,
     custoHoje,
     notificacoes,
+    prontos,
+    contatados,
+    descartados,
   ] = await Promise.all([
     db.busca.count({ where: { status: { in: ["pendente", "descobrindo", "processando"] } } }),
     db.lead.count(),
@@ -53,6 +56,9 @@ export async function metricas() {
     db.registroCusto.aggregate({ _sum: { custoUsd: true }, where: { criadoEm: { gte: mes } } }),
     db.registroCusto.aggregate({ _sum: { custoUsd: true }, where: { criadoEm: { gte: hoje } } }),
     db.notificacao.count({ where: { lidaEm: null } }),
+    db.lead.count({ where: { qualificacaoStatus: "qualificado", naoContatar: false, conversa: { is: null }, OR: [{ telefoneE164: { not: null } }, { whatsappE164: { not: null } }] } }),
+    db.conversa.count({ where: { mensagens: { some: { direcao: "saida" } } } }),
+    db.logOperacao.count({ where: { etapa: "filtro" } }),
   ]);
 
   const siteDeficiente = comSite.filter((l) => siteComProblemas(JSON.parse(l.siteAvaliacao!) as AvaliacaoSite)).length;
@@ -76,6 +82,13 @@ export async function metricas() {
     custoMesUsd: custoMes._sum.custoUsd ?? 0,
     custoHojeUsd: custoHoje._sum.custoUsd ?? 0,
     notificacoesNaoLidas: notificacoes,
+    prontos,
+    contatados,
+    descartados,
+    /** % das conversas iniciadas em que o cliente respondeu. */
+    taxaResposta: contatados ? Math.round((conversasRespondidas / contatados) * 100) : null,
+    /** % das conversas iniciadas que viraram negócio fechado. */
+    taxaConversao: contatados ? Math.round((fechados / contatados) * 100) : null,
     geradoEm: new Date().toISOString(),
   };
 }

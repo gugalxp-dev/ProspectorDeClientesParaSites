@@ -13,7 +13,6 @@ export const CREDENCIAIS = {
   WHATSAPP_BUSINESS_ACCOUNT_ID: { rotulo: "WhatsApp Business Account ID", grupo: "whatsapp" },
   WHATSAPP_APP_SECRET: { rotulo: "App Secret (assinatura dos webhooks)", grupo: "whatsapp" },
   WHATSAPP_VERIFY_TOKEN: { rotulo: "Verify Token do webhook", grupo: "whatsapp" },
-  GOOGLE_PLACES_API_KEY: { rotulo: "Chave da Google Places API (opcional, paga)", grupo: "prospeccao" },
 } as const;
 
 export type NomeCredencial = keyof typeof CREDENCIAIS;

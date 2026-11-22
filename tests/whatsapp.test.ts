@@ -12,6 +12,7 @@ import {
   pediuOptOut,
   reativarAgente,
   registrarConsentimento,
+  registrarOptOut,
   variantesTelefone,
 } from "../src/core/whatsapp/conversas";
 import { assinaturaValida, payloadSimulado, receberEventos } from "../src/core/whatsapp/webhook";
@@ -86,11 +87,18 @@ describe("webhook", () => {
 });
 
 describe("consentimento e opt-out", () => {
-  it("telefone público não autoriza contato: iniciar sem opt-in é bloqueado", async () => {
+  it("sem opt-in, iniciar contato registra legítimo interesse sozinho e envia", async () => {
     const lead = await criarLead();
+    const { mensagem } = await iniciarContato(lead.id, "u1");
+    expect(mensagem.status).toBe("enviada");
+    const c = await db.consentimento.findFirstOrThrow({ where: { leadId: lead.id } });
+    expect(c.baseLegal).toBe("legitimo_interesse");
+  });
+
+  it("com opt-out, iniciar contato continua bloqueado", async () => {
+    const lead = await criarLead();
+    await registrarOptOut({ leadId: lead.id }, "pediu para parar", "u1");
     await expect(iniciarContato(lead.id, "u1")).rejects.toThrow(EnvioBloqueado);
-    const l = await db.lead.findUniqueOrThrow({ where: { id: lead.id }, include: { etapa: true } });
-    expect(l.etapa?.chave).toBe("aguardando_autorizacao");
     expect(await db.mensagem.count()).toBe(0);
   });
 
@@ -171,7 +179,7 @@ describe("agente comercial", () => {
     expect(l.etapa?.chave).toBe("intervencao_humana");
     expect(l.automacaoPausada).toBe(true);
     expect(l.motivoTransferencia).toMatch(/aceitou/);
-    expect(await db.notificacao.count({ where: { tipo: "transferencia", leadId: lead.id } })).toBe(1);
+    expect(await db.notificacao.count({ where: { tipo: "aceite", leadId: lead.id } })).toBe(1); // aceite: "Gere o contrato"
     const ms = await mensagens(lead.id);
     expect(ms.at(-1)!.conteudo).toMatch(/pessoa da nossa equipe/);
     const c = await db.conversa.findUniqueOrThrow({ where: { leadId: lead.id } });

@@ -16,7 +16,7 @@ import { enfileirar } from "../fila";
 import { hashTelefone } from "../prospeccao/importar";
 import { normalizarTelefone } from "../telefone";
 import type { ChaveEtapa } from "../tipos";
-import { clienteWhatsApp, ErroWhatsApp } from "./cliente";
+import { clienteWhatsApp, ErroWhatsApp, modoWhatsApp } from "./cliente";
 import type { EntradaWhatsApp, StatusWhatsApp } from "./webhook";
 
 export const JANELA_MS = 24 * 3600_000;
@@ -42,7 +42,8 @@ function e164DoWaId(waId: string): string {
 
 async function moverEtapa(leadId: string, para: ChaveEtapa, motivo: string, usuarioId: string | null = null) {
   const destino = await idEtapa(para);
-  const r = await db.lead.updateMany({ where: { id: leadId, NOT: { etapaId: destino } }, data: { etapaId: destino, revisao: { increment: 1 } } });
+  // Sem NOT puro: em SQL, NOT (etapaId = x) com etapaId nulo é falso e o lead sem etapa não seria movido.
+  const r = await db.lead.updateMany({ where: { id: leadId, OR: [{ etapaId: null }, { etapaId: { not: destino } }] }, data: { etapaId: destino, revisao: { increment: 1 } } });
   if (r.count) await db.interacaoLead.create({ data: { leadId, tipo: "etapa", descricao: motivo, usuarioId } });
 }
 
@@ -144,7 +145,8 @@ interface PedidoEnvio {
   conversaId: string;
   autor: "agente" | "humano" | "sistema";
   texto?: string;
-  template?: { nome: string; idioma: string; parametros: string[] };
+  /** `texto`: versão em texto livre, usada no modo Baileys (sem templates). */
+  template?: { nome: string; idioma: string; parametros: string[]; texto?: string };
   usuarioId?: string | null;
 }
 
@@ -175,7 +177,8 @@ export async function enviarMensagem(p: PedidoEnvio) {
     await bloquear("Contato pediu para não receber mensagens (opt-out).");
   }
   if (conversa.status === "encerrada") await bloquear("Conversa encerrada.");
-  if (!p.template && !dentroDaJanela(conversa.ultimaEntradaEm)) {
+  // Janela de 24 h é regra da Meta (API oficial e simulador). No Baileys não existe.
+  if (!p.template && !dentroDaJanela(conversa.ultimaEntradaEm) && (await modoWhatsApp()) !== "baileys") {
     await bloquear("Fora da janela de 24 h do WhatsApp: só é possível enviar um template aprovado.");
   }
   if (p.template && lead?.contatoStatus !== "autorizado") {
@@ -205,7 +208,7 @@ export async function enviarMensagem(p: PedidoEnvio) {
       direcao: "saida",
       autor: p.autor,
       tipo: p.template ? "template" : "texto",
-      conteudo: p.texto ?? `[Template: ${p.template!.nome}]${p.template!.parametros.length ? ` ${p.template!.parametros.join(" | ")}` : ""}`,
+      conteudo: p.texto ?? p.template!.texto ?? `[Template: ${p.template!.nome}]${p.template!.parametros.length ? ` ${p.template!.parametros.join(" | ")}` : ""}`,
       templateNome: p.template?.nome ?? null,
       status: "pendente",
     },
@@ -214,7 +217,7 @@ export async function enviarMensagem(p: PedidoEnvio) {
   try {
     const cliente = await clienteWhatsApp();
     const r = p.template
-      ? await cliente.enviarTemplate(conversa.telefoneE164, p.template.nome, p.template.idioma, p.template.parametros)
+      ? await cliente.enviarTemplate(conversa.telefoneE164, p.template.nome, p.template.idioma, p.template.parametros, p.template.texto)
       : await cliente.enviarTexto(conversa.telefoneE164, p.texto!);
     const enviada = await db.mensagem.update({ where: { id: msg.id }, data: { waMessageId: r.id, status: "enviada", statusEm: new Date() } });
     await db.conversa.update({
@@ -226,9 +229,9 @@ export async function enviarMensagem(p: PedidoEnvio) {
       await db.registroCusto.create({
         data: {
           categoria: "whatsapp",
-          provedor: cliente.modo === "mock" ? "mock" : "meta",
+          provedor: cliente.modo === "cloud" ? "meta" : cliente.modo,
           operacao: "mensagem_template",
-          custoUsd: cliente.modo === "mock" ? 0 : cfgWa.precoTemplateUsd,
+          custoUsd: cliente.modo === "cloud" ? cfgWa.precoTemplateUsd : 0,
           estimado: true,
           leadId: lead?.id ?? null,
           conversaId: conversa.id,
@@ -250,12 +253,19 @@ export async function enviarMensagem(p: PedidoEnvio) {
   }
 }
 
-/** Primeiro contato: só com autorização registrada, e sempre por template aprovado (exigência da Meta). */
+/**
+ * Primeiro contato (template na Cloud API, texto no Baileys). Sem autorização registrada, registra sozinho
+ * com base em legítimo interesse (contato comercial B2B com telefone público). Opt-out e supressão continuam bloqueando.
+ */
 export async function iniciarContato(leadId: string, usuarioId: string) {
-  const lead = await db.lead.findUniqueOrThrow({ where: { id: leadId } });
+  let lead = await db.lead.findUniqueOrThrow({ where: { id: leadId } });
   if (lead.contatoStatus !== "autorizado") {
-    await moverEtapa(leadId, "aguardando_autorizacao", "Aguardando autorização de contato.", usuarioId);
-    throw new EnvioBloqueado("Registre a autorização de contato (opt-in) antes de iniciar a conversa.");
+    await registrarConsentimento(
+      leadId,
+      { origem: "Telefone comercial público da empresa (encontrado na prospecção). Contato B2B.", baseLegal: "legitimo_interesse" },
+      usuarioId,
+    );
+    lead = await db.lead.findUniqueOrThrow({ where: { id: leadId } });
   }
   const consentimento = await db.consentimento.findFirst({ where: { leadId, tipo: "opt_in" }, orderBy: { criadoEm: "desc" } });
   const tel = consentimento?.telefoneE164 ?? telefoneDoLead(lead);
@@ -263,14 +273,23 @@ export async function iniciarContato(leadId: string, usuarioId: string) {
 
   const cfg = await obterConfig("agente");
   const cliente = await clienteWhatsApp();
-  const nome = cfg.templatePrimeiroContato || (cliente.modo === "mock" ? "primeiro_contato_simulado" : "");
+  const nome = cfg.templatePrimeiroContato || { mock: "primeiro_contato_simulado", baileys: "primeiro_contato_baileys", cloud: "" }[cliente.modo];
   if (!nome) throw new EnvioBloqueado("Configure o nome do template aprovado de primeiro contato em Admin > Agente.");
+  // Baileys não tem templates: manda o texto configurado, com os mesmos limites e exigência de opt-in.
+  const texto =
+    cliente.modo === "baileys"
+      ? cfg.mensagemPrimeiroContato
+          .replaceAll("{nome}", lead.nome)
+          .replaceAll("{agente}", cfg.nomeAgente || "a equipe")
+          .replaceAll("{empresa}", cfg.nomeEmpresa || "nossa empresa")
+      : undefined;
+  if (cliente.modo === "baileys" && !texto?.trim()) throw new EnvioBloqueado("Configure o texto do primeiro contato (modo Baileys) em Admin > Agente.");
 
   const conversa = await obterConversa(tel, leadId);
   if (conversa.status !== "ativa") {
     await db.conversa.update({ where: { id: conversa.id }, data: { status: "ativa", agenteAtivo: !lead.automacaoPausada } });
   }
-  const msg = await enviarMensagem({ conversaId: conversa.id, autor: "humano", usuarioId, template: { nome, idioma: cfg.idiomaTemplate, parametros: [] } });
+  const msg = await enviarMensagem({ conversaId: conversa.id, autor: "humano", usuarioId, template: { nome, idioma: cfg.idiomaTemplate, parametros: [], texto } });
   await moverEtapa(leadId, "aguardando_resposta", "Contato iniciado por template; aguardando resposta.", usuarioId);
   await db.interacaoLead.create({ data: { leadId, tipo: "contato", descricao: `Primeiro contato enviado (template ${nome}).`, usuarioId } });
   return { conversa, mensagem: msg };
@@ -278,7 +297,7 @@ export async function iniciarContato(leadId: string, usuarioId: string) {
 
 // ───────────── Transferência para humano ─────────────
 
-export async function transferirParaHumano(conversaId: string, motivo: string, por: { usuarioId?: string | null; agente?: boolean }) {
+export async function transferirParaHumano(conversaId: string, motivo: string, por: { usuarioId?: string | null; agente?: boolean; aceite?: boolean }) {
   const c = await db.conversa.update({ where: { id: conversaId }, data: { status: "transferida", agenteAtivo: false } });
   if (c.leadId) {
     await db.lead.update({ where: { id: c.leadId }, data: { automacaoPausada: true, transferidoEm: new Date(), motivoTransferencia: motivo } });
@@ -287,7 +306,9 @@ export async function transferirParaHumano(conversaId: string, motivo: string, p
   }
   const lead = c.leadId ? await db.lead.findUnique({ where: { id: c.leadId }, select: { nome: true } }) : null;
   const n = await db.notificacao.create({
-    data: { tipo: "transferencia", titulo: `Atendimento humano: ${lead?.nome ?? c.telefoneE164}`, mensagem: motivo, leadId: c.leadId },
+    data: por.aceite
+      ? { tipo: "aceite", titulo: `Cliente aceitou! Gere o contrato: ${lead?.nome ?? c.telefoneE164}`, mensagem: motivo, leadId: c.leadId }
+      : { tipo: "transferencia", titulo: `Atendimento humano: ${lead?.nome ?? c.telefoneE164}`, mensagem: motivo, leadId: c.leadId },
   });
   await auditar(por.usuarioId ?? null, por.agente ? "transferencia_agente" : "transferencia_manual", c.leadId ?? c.id, { motivo });
   await emitir("notificacao.nova", { id: n.id, leadId: c.leadId });

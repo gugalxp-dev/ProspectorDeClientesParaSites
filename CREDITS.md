@@ -1,13 +1,5 @@
 # Créditos
 
-## Motor de busca
-
-- **Projeto:** google-maps-scraper
-- **Autor:** Georgios Komninos ([@gosom](https://github.com/gosom))
-- **Repositório:** https://github.com/gosom/google-maps-scraper
-- **Licença:** MIT, Copyright (c) 2023 Georgios Komninos
-- **Uso:** fonte opcional e desativada por padrão; imagem Docker oficial `gosom/google-maps-scraper`, sem modificações (veja `docker-compose.yml`).
-
 ## Dados
 
 - Fonte padrão de descoberta e geocodificação: © colaboradores do OpenStreetMap, licença ODbL (https://www.openstreetmap.org/copyright).

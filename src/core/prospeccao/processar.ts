@@ -2,7 +2,6 @@
 // Só preenche dados ausentes; tudo que vem do site é registrado com a URL de origem.
 
 import { obterConfig } from "../config";
-import { moverSeAutomatica } from "../crm/etapas";
 import { db } from "../db";
 import { emitir, registrarLog } from "../eventos";
 import { calcularPontuacao } from "../pontuacao";
@@ -19,7 +18,6 @@ export async function processarLead(leadId: string, buscaId?: string | null, opc
   let l = await db.lead.findUnique({ where: { id: leadId } });
   if (!l) return;
   const [cfg, pesos] = await Promise.all([obterConfig("prospeccao"), obterConfig("pesos")]);
-  await moverSeAutomatica(leadId, "em_analise");
 
   // Fonte sem site: tenta achar o oficial antes de concluir "sem site".
   if (!l.website && cfg.inferirSite && (!l.siteAvaliadoEm || opcoes.forcar)) {
@@ -54,7 +52,11 @@ export async function processarLead(leadId: string, buscaId?: string | null, opc
     const avaliacao = avaliarSite(crawl, dados);
     const presenca: Presenca = avaliacao.online ? "com_site" : "site_fora_do_ar";
 
-    const telSite = dados.telefones.map((t) => normalizarTelefone(t.valor)).find((t) => t.e164);
+    const telsSite = dados.telefones.map((t) => normalizarTelefone(t.valor)).filter((t) => t.e164);
+    // Prefere celular (possível WhatsApp): se o número da fonte é fixo e o site mostra um celular, usa o celular.
+    const celSite = telsSite.find((t) => t.ehCelular);
+    const telSite = celSite ?? telsSite[0];
+    const trocarPorCelular = !!celSite && !l.ehCelular;
     const whatsapp = dados.whatsapps[0]?.valor ?? null;
     const emails = l.emails ?? (dados.emails.length ? dados.emails.map((e) => e.valor).join(", ") : null);
     const outras = Object.fromEntries(Object.entries(dados.outrasRedes).map(([k, v]) => [k, v.valor]));
@@ -63,8 +65,8 @@ export async function processarLead(leadId: string, buscaId?: string | null, opc
       presencaConfianca: "alta",
       siteAvaliacao: JSON.stringify(avaliacao),
       siteAvaliadoEm: new Date(),
-      telefoneE164: l.telefoneE164 ?? telSite?.e164 ?? null,
-      ehCelular: l.telefoneE164 ? l.ehCelular : (telSite?.ehCelular ?? false),
+      telefoneE164: trocarPorCelular ? celSite!.e164 : (l.telefoneE164 ?? telSite?.e164 ?? null),
+      ehCelular: trocarPorCelular ? true : l.telefoneE164 ? l.ehCelular : (telSite?.ehCelular ?? false),
       whatsappE164: l.whatsappE164 ?? whatsapp,
       emails,
       endereco: l.endereco ?? dados.endereco?.valor ?? null,

@@ -44,7 +44,8 @@ export async function moverSeAutomatica(leadId: string, para: ChaveEtapa): Promi
   const permitidas = await Promise.all(ETAPAS_AUTOMATICAS.map(idEtapa));
   const destino = await idEtapa(para);
   const r = await db.lead.updateMany({
-    where: { id: leadId, OR: [{ etapaId: null }, { etapaId: { in: permitidas } }], NOT: { etapaId: destino } },
+    // Sem NOT: em SQL, NOT (etapaId = x) com etapaId nulo é falso, e o lead sem etapa nunca seria movido.
+    where: { id: leadId, OR: [{ etapaId: null }, { etapaId: { in: permitidas.filter((id) => id !== destino) } }] },
     data: { etapaId: destino, revisao: { increment: 1 } },
   });
   return r.count > 0;

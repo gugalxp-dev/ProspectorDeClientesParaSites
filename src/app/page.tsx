@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { IndicadoresPendencias } from "@/components/IndicadoresPendencias";
 import { PainelMetricas } from "@/components/PainelMetricas";
 import { AtualizarAoVivo } from "@/components/AoVivo";
 import { Barra, Titulo, dataHora } from "@/components/ui";
@@ -7,12 +8,13 @@ import { db } from "@/core/db";
 import { modoWhatsApp } from "@/core/whatsapp/cliente";
 import { provedorAtivo } from "@/core/ia/servico";
 import { metricas } from "@/core/metricas";
+import { contarPendencias } from "@/core/pendencias";
 import { STATUS_BUSCA_ROTULO } from "@/core/tipos";
 import { exigirUsuario } from "@/lib/auth";
 
 export default async function Dashboard() {
   await exigirUsuario("/");
-  const [m, buscas, transferidos, ia, wa] = await Promise.all([
+  const [m, buscas, transferidos, ia, wa, pend] = await Promise.all([
     metricas(),
     listarBuscas(8),
     db.lead.findMany({
@@ -23,6 +25,7 @@ export default async function Dashboard() {
     }),
     provedorAtivo(),
     modoWhatsApp(),
+    contarPendencias(),
   ]);
 
   return (
@@ -31,10 +34,11 @@ export default async function Dashboard() {
       {(ia.nome === "mock" || wa === "mock") && (
         <div className="rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
           <strong>Modo simulado:</strong> {ia.nome === "mock" && "IA sem chave da Anthropic (análises e respostas simuladas). "}
-          {wa === "mock" && "WhatsApp sem credenciais da Meta (nenhuma mensagem sai do computador). "}
+          {wa === "mock" && "WhatsApp em modo simulado (nenhuma mensagem sai do computador). "}
           <Link href="/admin/integracoes" className="underline">Configurar integrações</Link>
         </div>
       )}
+      <IndicadoresPendencias aprovar={pend.aprovar} contratos={pend.contratos} intervencao={pend.intervencao} alertas={pend.alertas} />
       <PainelMetricas inicial={m} />
 
       <div className="grid gap-6 lg:grid-cols-2">

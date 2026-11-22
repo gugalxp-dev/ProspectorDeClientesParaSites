@@ -23,9 +23,12 @@ export default async function AdminProspeccao() {
           { caminho: "maxEmpresasPorBusca", rotulo: "Máx. empresas por pesquisa (por fonte)", tipo: "numero", min: 10, max: 2000 },
           { caminho: "buscasSimultaneas", rotulo: "Descobertas simultâneas", tipo: "numero", min: 1, max: 10 },
           { caminho: "qualificarAutomaticamente", rotulo: "Qualificar com IA automaticamente após a coleta", tipo: "booleano" },
+          { caminho: "exigirCelular", rotulo: "Só empresas com celular ou WhatsApp", tipo: "booleano", ajuda: "Telefone fixo é ignorado (não tem WhatsApp). Quem não se enquadra não é registrado nem analisado." },
+          { caminho: "ignorarRedes", rotulo: "Ignorar redes e franquias", tipo: "booleano", ajuda: "Usa a marca cadastrada no OpenStreetMap e a lista abaixo." },
+          { caminho: "redesIgnoradas", rotulo: "Redes ignoradas (uma por linha)", tipo: "lista" },
+          { caminho: "descartarComSiteBom", rotulo: "Descartar empresas que já têm site bom", tipo: "booleano", ajuda: "Site no ar e sem problemas técnicos. Sites fora do ar ou com problemas continuam." },
           { caminho: "scoreMinimoQualificado", rotulo: "Score mínimo para “Qualificado”", tipo: "numero", min: 0, max: 100 },
           { caminho: "pesoIaPct", rotulo: "Peso da IA no score final (%)", tipo: "numero", min: 0, max: 100, ajuda: "Score = regras × (100 − peso)% + IA × peso%." },
-          { caminho: "custoPlacesPorRequisicaoUsd", rotulo: "Google Places: custo por requisição (US$)", tipo: "numero", min: 0, max: 1, passo: 0.001, ajuda: "Usado na página de Custos. Confira o preço atual do Text Search no Google Cloud." },
           { caminho: "reverificarSiteAposDias", rotulo: "Reavaliar site depois de (dias)", tipo: "numero", min: 1, max: 365 },
         ]}
       />

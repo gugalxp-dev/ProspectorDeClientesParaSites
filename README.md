@@ -8,7 +8,7 @@ Plataforma de prospecção comercial B2B para vender **sites institucionais**. V
 
 ```
 Pesquisa (segmento + cidade)
-  └─ worker: descoberta em cada fonte ativa ─ OpenStreetMap (padrão, grátis) · Google Places (opcional, pago) · gosom (opcional)
+  └─ worker: descoberta em cada fonte ativa ─ OpenStreetMap (grátis)
        └─ importação com deduplicação global (id na fonte > telefone > domínio > nome+cidade)
             └─ por empresa: procura o site oficial → crawler (robots.txt, limites) → scraper → avaliação técnica do site
                  └─ score por regras + qualificação por IA (fatos x hipóteses) → CRM
@@ -71,7 +71,7 @@ src/
   app/            páginas (dashboard, pesquisas, crm, leads, admin) e rotas /api
   components/     interface (Kanban, conversa, formulários do admin, SSE)
   core/
-    fontes/       provedores de descoberta (osm, places, gmaps) — um arquivo por fonte
+    fontes/       provedores de descoberta (osm) — um arquivo por fonte
     prospeccao/   crawler, robots, scraper, avaliação do site, descoberta do site, importação, qualificação
     ia/           camada independente de provedor (Anthropic/Claude padrão, OpenAI opcional, mock), custos e limites
     agente/       agente comercial, RAG, verificação das regras comerciais
@@ -85,6 +85,6 @@ Para adicionar uma fonte de descoberta, crie `src/core/fontes/minhafonte.ts` imp
 
 ## Limitações conhecidas
 
-- **Cobertura do OpenStreetMap**: gratuito e permitido, mas no Brasil muitos negócios aparecem sem telefone ou site. O sistema tenta achar o site oficial pelo nome e só o confirma quando a página cita o nome e a cidade (ou o telefone). Para ter mais volume, ative o Google Places (pago) em Admin > Prospecção.
+- **Cobertura do OpenStreetMap**: gratuito e permitido, mas no Brasil muitos negócios aparecem sem telefone ou site. O sistema tenta achar o site oficial pelo nome e só o confirma quando a página cita o nome e a cidade (ou o telefone).
 - **SQLite + um worker**: ótimo para uso local e para um operador. Para várias instâncias, troque para Postgres e use um rate limit distribuído.
 - **Custos são estimativas**, calculadas pela tabela de preços do painel. O valor cobrado de fato aparece no faturamento de cada provedor.

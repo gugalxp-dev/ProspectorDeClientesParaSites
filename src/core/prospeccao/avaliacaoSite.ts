@@ -39,6 +39,12 @@ function motivoErro(erro: string): string {
 
 const ANO_ATUAL = new Date().getFullYear();
 
+/** "www.subway.com.br" -> "subway". */
+const marca = (host: string) => dominioRegistravel(host).split(".")[0];
+
+const ESTACIONAMENTO = ["sedoparking.com", "sedo.com", "hugedomains.com", "dan.com", "afternic.com", "parkingcrew.net", "bodis.com", "godaddy.com", "registro.br", "above.com", "undeveloped.com"];
+const DESAFIO_ROBO = /cf_chl_opt|cf-chl-widget|<title>\s*(?:Just a moment|Attention Required|Access Denied|Acesso negado)|Request unsuccessful\. Incapsula/i;
+
 export function avaliarSite(c: ResultadoCrawl, dados: DadosSite): AvaliacaoSite {
   const base = {
     urlFinal: c.urlFinal,
@@ -60,11 +66,34 @@ export function avaliarSite(c: ResultadoCrawl, dados: DadosSite): AvaliacaoSite 
 
   if (!home || c.erroInicial) return fora(motivoErro(c.erroInicial ?? "sem resposta"));
   const st = home.status ?? 0;
+  const hostFinal = c.urlFinal ? hostDe(c.urlFinal) : "";
+  const outroDominio = !!c.urlFinal && dominioRegistravel(hostFinal) !== dominioRegistravel(hostDe(c.inicial));
+  // Domínio expirado costuma cair numa página de estacionamento/venda.
+  if (outroDominio && ESTACIONAMENTO.some((d) => hostFinal === d || hostFinal.endsWith(`.${d}`))) {
+    return fora(`O domínio está estacionado ou à venda (${hostFinal})`);
+  }
+  // subway.com -> subway.com.br é a mesma marca (site regional): está no ar. Para outra marca, o domínio foi abandonado.
+  if (outroDominio && marca(hostFinal) !== marca(hostDe(c.inicial))) {
+    return fora(`O domínio redireciona para outro site (${hostFinal})`);
+  }
+  // Sites grandes bloqueiam robôs (Cloudflare, 403, 429). O site está no ar; só não dá para analisar o conteúdo.
+  const bloqueouRobo = [401, 403, 429].includes(st) || (st >= 500 && DESAFIO_ROBO.test(home.html ?? "")) || DESAFIO_ROBO.test((home.html ?? "").slice(0, 5000));
+  if (bloqueouRobo) {
+    return {
+      ...base,
+      paginasComErro: 0,
+      online: true,
+      https: (c.urlFinal ?? c.inicial).startsWith("https://"),
+      tempoMs: home.ms,
+      verificacoes: [
+        { id: "acessivel", rotulo: "Site acessível", ok: true, detalhe: `HTTP ${st}: o site bloqueia análise automática (comum em sites profissionais)`, peso: "alto" },
+        { id: "conteudo", rotulo: "Conteúdo analisado", ok: null, detalhe: "Bloqueado para robôs", peso: "baixo" },
+      ],
+      problemas: [],
+    };
+  }
   if (st >= 500) return fora(`O site está com erro no servidor (HTTP ${st})`);
   if (st === 404 || st === 410) return fora(`A página inicial não existe (HTTP ${st})`);
-  if (c.urlFinal && dominioRegistravel(hostDe(c.urlFinal)) !== dominioRegistravel(hostDe(c.inicial))) {
-    return fora(`O domínio redireciona para outro site (${hostDe(c.urlFinal)})`);
-  }
 
   const html = home.html;
   const todas = c.paginas.map((p) => p.html).join("\n");
@@ -73,7 +102,7 @@ export function avaliarSite(c: ResultadoCrawl, dados: DadosSite): AvaliacaoSite 
   const v: Verificacao[] = [];
   const add = (id: string, rotulo: string, ok: boolean | null, peso: Verificacao["peso"], detalhe?: string) => v.push({ id, rotulo, ok, peso, detalhe });
 
-  add("acessivel", "Site acessível", true, "alto", `HTTP ${st} em ${home.ms} ms`);
+  add("acessivel", "Site acessível", true, "alto", `HTTP ${st} em ${home.ms} ms${outroDominio ? ` (redireciona para ${hostFinal})` : ""}`);
   add("https", "Usa HTTPS", https, "alto", https ? undefined : c.certificadoFalhou ? "O certificado HTTPS falhou; só abre por http" : "Abre sem HTTPS (navegadores mostram \"não seguro\")");
   add("rapido", "Responde rápido", home.ms <= 3000, "medio", `${home.ms} ms para a página inicial`);
 

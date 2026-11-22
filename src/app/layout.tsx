@@ -5,6 +5,7 @@ import { Target } from "lucide-react";
 import { AlternarTema } from "@/components/AlternarTema";
 import { IndicadorConexao } from "@/components/AoVivo";
 import { MenuUsuario, Notificacoes } from "@/components/Cabecalho";
+import { contarPendencias } from "@/core/pendencias";
 import { usuarioAtual } from "@/lib/auth";
 import "./globals.css";
 
@@ -16,8 +17,10 @@ export const metadata: Metadata = {
 export default async function Layout({ children }: { children: React.ReactNode }) {
   const u = await usuarioAtual();
   const tema = (await cookies()).get("tema")?.value === "claro" ? "claro" : "escuro";
-  const nav = [
+  const pendencias = u ? (await contarPendencias().catch(() => null))?.total ?? 0 : 0;
+  const nav: Array<{ href: string; rotulo: string; contador?: number }> = [
     { href: "/", rotulo: "Dashboard" },
+    { href: "/pendencias", rotulo: "Pendências", contador: pendencias },
     { href: "/pesquisas", rotulo: "Pesquisas" },
     { href: "/crm", rotulo: "CRM" },
     ...(u?.papel === "admin" ? [{ href: "/admin/custos", rotulo: "Gastos" }, { href: "/admin", rotulo: "Admin" }] : []),
@@ -26,7 +29,7 @@ export default async function Layout({ children }: { children: React.ReactNode }
     <html lang="pt-BR" className={tema === "escuro" ? "escuro" : undefined}>
       <body>
         {u && (
-          <header className="sticky top-0 z-20 border-b border-slate-200 bg-superficie/70 backdrop-blur-xl">
+          <header className="sticky top-0 z-20 print:hidden border-b border-slate-200 bg-superficie/70 backdrop-blur-xl">
             <div className="mx-auto flex max-w-[1600px] items-center gap-3 px-4 py-3 sm:gap-6">
               <Link href="/" className="flex items-center gap-2 font-semibold text-slate-900" aria-label="Início">
                 <span className="flex size-8 items-center justify-center rounded-lg bg-linear-to-br from-violet-600 via-fuchsia-600 to-pink-500 shadow-lg shadow-fuchsia-600/30">
@@ -38,6 +41,7 @@ export default async function Layout({ children }: { children: React.ReactNode }
                 {nav.map((n) => (
                   <Link key={n.href} href={n.href} className="whitespace-nowrap rounded-lg px-2 py-1.5 font-medium text-slate-600 transition hover:bg-slate-100 hover:text-slate-900 sm:px-3">
                     {n.rotulo}
+                    {!!n.contador && <span className="ml-1.5 rounded-full bg-pink-600 px-1.5 py-0.5 text-[10px] font-semibold text-white">{n.contador}</span>}
                   </Link>
                 ))}
               </nav>

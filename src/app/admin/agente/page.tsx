@@ -35,6 +35,7 @@ export default async function AdminAgente() {
           { caminho: "maxMensagensPorConversaDia", rotulo: "Máx. mensagens do agente por conversa/dia", tipo: "numero", min: 1, max: 50 },
           { caminho: "templatePrimeiroContato", rotulo: "Nome do template aprovado para o primeiro contato", tipo: "texto", ajuda: "Exatamente como aprovado no WhatsApp Manager. Obrigatório no modo real." },
           { caminho: "idiomaTemplate", rotulo: "Idioma do template", tipo: "texto", ajuda: "Ex.: pt_BR" },
+          { caminho: "mensagemPrimeiroContato", rotulo: "Primeiro contato no modo Baileys (texto)", tipo: "area", ajuda: "Usado só com WHATSAPP_MODO=baileys, que não tem templates. Aceita {nome}, {agente} e {empresa}." },
           { caminho: "mensagemTransferencia", rotulo: "Mensagem ao transferir para humano", tipo: "area" },
           { caminho: "mensagemOptOut", rotulo: "Confirmação de opt-out", tipo: "area" },
         ]}

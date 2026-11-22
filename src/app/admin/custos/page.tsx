@@ -20,7 +20,6 @@ type Periodo = (typeof PERIODOS)[number][0];
 const CATEGORIA: Record<string, [string, string]> = {
   ia: ["IA (OpenAI)", "from-violet-600 to-fuchsia-600"],
   whatsapp: ["WhatsApp", "from-emerald-500 to-teal-600"],
-  descoberta: ["Descoberta (Google Places)", "from-sky-500 to-cyan-500"],
 };
 
 const OPERACAO: Record<string, string> = {
@@ -30,7 +29,6 @@ const OPERACAO: Record<string, string> = {
   teste: "Testes de conexão",
   resumo: "Resumos",
   mensagem_template: "Templates de primeiro contato",
-  descoberta: "Busca de empresas (Google Places)",
 };
 
 const POR_PAGINA = 50;
@@ -176,8 +174,7 @@ export default async function AdminCustos({ searchParams }: { searchParams: Prom
       <Titulo>Gastos</Titulo>
       <p className="text-sm text-slate-600">
         Valores <strong>estimados</strong>: uso informado pelo provedor × tabela de preços (
-        <Link href="/admin/ia" className="text-marca-700 underline">IA</Link>, <Link href="/admin/whatsapp" className="text-marca-700 underline">WhatsApp</Link>,{" "}
-        <Link href="/admin/prospeccao" className="text-marca-700 underline">Google Places</Link>). O valor cobrado de fato está no faturamento de cada provedor. Operações simuladas custam zero.
+        <Link href="/admin/ia" className="text-marca-700 underline">IA</Link>, <Link href="/admin/whatsapp" className="text-marca-700 underline">WhatsApp</Link>). O valor cobrado de fato está no faturamento de cada provedor. Operações simuladas custam zero.
       </p>
 
       {/* Filtros */}

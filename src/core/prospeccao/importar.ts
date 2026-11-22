@@ -4,7 +4,9 @@
 // Toda informação recebida fica registrada em DadoOrigem (de onde veio e quando).
 
 import { hashSecret } from "@/lib/crypto";
-import { idEtapa } from "../crm/etapas";
+import { obterConfig } from "../config";
+import { registrarLog } from "../eventos";
+import { motivoIgnorarNaImportacao } from "./filtro";
 import { db } from "../db";
 import { semAcento } from "../fontes/osm";
 import { classificarWebsite, dominioRegistravel, hostDe } from "../presenca";
@@ -64,7 +66,7 @@ export function importarLugares(buscaId: string, nicho: string, cidade: string, 
 
 async function importarSemConcorrencia(buscaId: string, nicho: string, cidade: string, lugares: LugarBruto[]): Promise<ResultadoImportacao> {
   const res: ResultadoImportacao = { recebidos: lugares.length, importados: 0, novos: 0, ignorados: 0, leadIds: [] };
-  const etapaNovo = await idEtapa("novo");
+  const cfg = await obterConfig("prospeccao");
 
   for (const l of lugares) {
     if (l.ativo === false || !l.nome?.trim()) {
@@ -76,6 +78,14 @@ async function importarSemConcorrencia(buscaId: string, nicho: string, cidade: s
     const dominio = site.presenca === "com_site" && l.website ? dominioRegistravel(hostDe(l.website)) : null;
     const nomeN = normalizarNome(l.nome);
     const cidadeLead = l.cidade?.trim() || cidade;
+
+    // Nem registra quem não se enquadra (rede/franquia, sem celular e sem site para procurar um).
+    const ignorar = motivoIgnorarNaImportacao({ nome: l.nome, rede: l.rede, ehCelular: tel.ehCelular, temSite: site.presenca === "com_site" }, cfg);
+    if (ignorar) {
+      res.ignorados++;
+      await registrarLog("info", "filtro", `${l.nome}: ignorado (${ignorar})`, { buscaId });
+      continue;
+    }
 
     const existente = await encontrarExistente(l, tel.e164, dominio, nomeN, cidadeLead);
     const suprimido = tel.e164 ? await db.supressao.findUnique({ where: { telefoneHash: hashTelefone(tel.e164) } }) : null;
@@ -128,7 +138,7 @@ async function importarSemConcorrencia(buscaId: string, nicho: string, cidade: s
           facebook: l.facebook ?? (redeDoSite as { facebook?: string }).facebook ?? null,
           presenca,
           presencaConfianca: presenca === "sem_site_identificado" ? "baixa" : "alta",
-          etapaId: etapaNovo,
+          etapaId: null, // só entra no CRM depois de passar pelo filtro (prospeccao/filtro.ts)
           ...(suprimido ? { naoContatar: true, contatoStatus: "opt_out" } : {}),
         },
       });

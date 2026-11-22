@@ -53,7 +53,7 @@ afterAll(() => {
 beforeEach(async () => {
   await limparBanco();
   await garantirEtapas();
-  await salvarConfig("prospeccao", { fontes: { fa: { ativa: true }, fb: { ativa: false } }, crawler: { profundidade: 1, maxPaginasPorSite: 3, concorrencia: 4, atrasoPorHostMs: 250, timeoutMs: 5000, respeitarRobots: true } });
+  await salvarConfig("prospeccao", { exigirCelular: false, descartarComSiteBom: false, fontes: { fa: { ativa: true }, fb: { ativa: false } }, crawler: { profundidade: 1, maxPaginasPorSite: 3, concorrencia: 4, atrasoPorHostMs: 250, timeoutMs: 5000, respeitarRobots: true } });
 });
 
 describe("pesquisas", () => {
@@ -103,6 +103,25 @@ describe("pesquisas", () => {
     expect(banho.qualificacaoStatus).toBe("qualificado");
     expect(banho.etapa?.chave).toBe("qualificado");
     expect(await db.registroCusto.count({ where: { buscaId: b.id, operacao: "qualificacao" } })).toBe(2);
+  });
+
+  it("filtro: não registra sem celular, apaga quem tem site bom, sem gastar IA; mantém quem tem celular e precisa de site", async () => {
+    await salvarConfig("prospeccao", { fontes: { fa: { ativa: true } }, crawler: { profundidade: 1, maxPaginasPorSite: 3, concorrencia: 4, atrasoPorHostMs: 250, timeoutMs: 5000, respeitarRobots: true } });
+    registrarFonte(
+      fonteFalsa("fa", () => [
+        lugar("1", "Pet Feliz", { website: "https://petfeliz.com.br", telefone: "(13) 3333-0001" }),
+        lugar("2", "Banho e Tosa Amigo", { telefone: "(13) 98888-0002" }),
+        lugar("3", "Sem Numero Pet"),
+      ]),
+    );
+    const b = await criarBusca({ nicho: "Pet shops", cidade: "Praia Grande" }, null);
+    await rodarFila(200, { ignorarAtraso: true });
+    // Pet Feliz: tem WhatsApp no site, mas o site está bom -> apagado depois da visita.
+    // Sem Numero Pet: sem celular e sem site -> nem chega a ser registrado.
+    const leads = await db.lead.findMany({ select: { nome: true, qualificacaoStatus: true } });
+    expect(leads).toEqual([{ nome: "Banho e Tosa Amigo", qualificacaoStatus: "qualificado" }]);
+    expect(await db.registroCusto.count({ where: { buscaId: b.id, operacao: "qualificacao" } })).toBe(1);
+    expect((await resumoBusca(b.id))?.descartadas).toBe(2);
   });
 
   it("pesquisas simultâneas mantêm resultados próprios e deduplicam empresas globalmente", async () => {

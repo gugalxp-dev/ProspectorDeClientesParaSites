@@ -3,9 +3,12 @@ import { notFound } from "next/navigation";
 import { ExternalLink } from "lucide-react";
 import { AtualizarAoVivo } from "@/components/AoVivo";
 import { AutorizacaoContato, ExcluirDados, Reprocessar } from "@/components/AcoesLead";
+import { headers } from "next/headers";
+import { ContratoLead } from "@/components/ContratoLead";
 import { ConversaLead } from "@/components/ConversaLead";
 import { NotasLead } from "@/components/NotasLead";
 import { Score, SeloContato, SeloPresenca, SeloQualificacao, COR_ETAPA, dataHora, usd } from "@/components/ui";
+import { dadosIniciais, esquemaDadosContrato, linkPublico } from "@/core/contratos";
 import { obterLeadCompleto } from "@/core/crm/leads";
 import { db } from "@/core/db";
 import type { AvaliacaoSite } from "@/core/prospeccao/avaliacaoSite";
@@ -38,12 +41,22 @@ function LinkExterno({ href, children }: { href: string; children?: React.ReactN
   );
 }
 
-export default async function Lead({ params }: { params: Promise<{ id: string }> }) {
+export default async function Lead({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<Record<string, string | undefined>> }) {
   const { id } = await params;
+  const abrirContrato = (await searchParams).contrato === "1";
   const u = await exigirUsuario(`/leads/${id}`);
   const l = await obterLeadCompleto(id);
   if (!l) notFound();
-  const [usuarios, modo] = await Promise.all([db.usuario.findMany({ select: { id: true, nome: true }, where: { bloqueadoEm: null } }), modoWhatsApp()]);
+  const [usuarios, modo, contratos, servicos, h] = await Promise.all([
+    db.usuario.findMany({ select: { id: true, nome: true }, where: { bloqueadoEm: null } }),
+    modoWhatsApp(),
+    db.contrato.findMany({ where: { leadId: id }, orderBy: { criadoEm: "desc" } }),
+    db.servico.findMany({ where: { ativo: true }, orderBy: { ordem: "asc" }, select: { nome: true, descricao: true, precoCentavos: true, prazoDias: true } }),
+    headers(),
+  ]);
+  const origem = `${h.get("x-forwarded-proto") ?? "http"}://${h.get("host") ?? "localhost:3000"}`;
+  const rascunho = contratos.find((c) => c.status === "rascunho");
+  const dadosRascunho = rascunho ? esquemaDadosContrato.parse(JSON.parse(rascunho.dados)) : await dadosIniciais(id);
 
   const q = l.qualificacao ? (JSON.parse(l.qualificacao) as Qualificacao) : null;
   const site = l.siteAvaliacao ? (JSON.parse(l.siteAvaliacao) as AvaliacaoSite) : null;
@@ -194,6 +207,26 @@ export default async function Lead({ params }: { params: Promise<{ id: string }>
             </Linha>
             <Linha rotulo="Custo estimado">{usd(l.custoUsd)}</Linha>
           </section>
+
+          <ContratoLead
+            leadId={l.id}
+            contratos={contratos.map((c) => ({
+              id: c.id,
+              numero: c.numero,
+              status: c.status,
+              link: linkPublico(c.tokenCifrado, origem),
+              enviadoEm: c.enviadoEm?.toISOString() ?? null,
+              visualizadoEm: c.visualizadoEm?.toISOString() ?? null,
+              aceitoEm: c.aceitoEm?.toISOString() ?? null,
+              aceiteNome: c.aceiteNome,
+              criadoEm: c.criadoEm.toISOString(),
+            }))}
+            rascunho={dadosRascunho}
+            rascunhoId={rascunho?.id ?? null}
+            abrir={abrirContrato}
+            servicos={servicos}
+            temWhatsapp={!!(l.whatsappE164 || (l.ehCelular && l.telefoneE164)) && !l.naoContatar}
+          />
 
           <AutorizacaoContato
             id={l.id}

@@ -76,7 +76,7 @@ export function Kanban({ colunas }: { colunas: ColunaKanban[] }) {
         {estado.map((c) => (
           <section
             key={c.etapa.id}
-            className={`flex w-72 shrink-0 flex-col rounded-lg border bg-slate-100/70 ${sobre === c.etapa.id ? "border-marca-500 ring-2 ring-marca-100" : "border-slate-200"}`}
+            className={`flex ${c.total === 0 ? "w-44 opacity-70" : "w-72"} shrink-0 flex-col rounded-lg border bg-slate-100/70 ${sobre === c.etapa.id ? "border-marca-500 ring-2 ring-marca-100" : "border-slate-200"}`}
             onDragOver={(e) => {
               e.preventDefault();
               setSobre(c.etapa.id);
