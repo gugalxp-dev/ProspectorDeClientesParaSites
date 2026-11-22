@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { criarBusca, listarBuscas } from "@/core/busca";
+import { criarBusca, listarBuscas, PesquisaDuplicada } from "@/core/busca";
 import { auditar } from "@/lib/auditoria";
 import { dentroDoLimite } from "@/lib/limite";
 import { comIdempotencia, jsonErro, lerJson, rota } from "@/lib/http";
@@ -21,6 +21,7 @@ export const POST = rota(async (req, { usuario }) =>
       await auditar(usuario.id, "pesquisa_criada", b.id, dados);
       return Response.json(b, { status: 201 });
     } catch (e) {
+      if (e instanceof PesquisaDuplicada) return jsonErro(409, e.message, { existenteId: e.existente.id });
       return jsonErro(400, (e as Error).message);
     }
   }),

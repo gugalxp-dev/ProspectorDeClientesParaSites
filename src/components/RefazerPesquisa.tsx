@@ -6,19 +6,28 @@ import { RotateCw } from "lucide-react";
 import { chamarApi } from "./api";
 import { ModalConfirmacao } from "./ModalConfirmacao";
 
-/** Refaz a pesquisa com as regras atuais (mesmo segmento e cidade), com confirmação. */
+/** Refaz a pesquisa do zero (apaga os registros dela e busca de novo), com confirmação. */
 export function RefazerPesquisa({ id, nome, botao }: { id: string; nome: string; botao?: boolean }) {
   const router = useRouter();
-  const [aberto, setAberto] = useState(false);
+  const [empresas, setEmpresas] = useState<number | null>(null);
   const [ocupado, setOcupado] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
+
+  async function pedir() {
+    setErro(null);
+    try {
+      setEmpresas((await chamarApi<{ empresas: number }>(`/api/pesquisas/${id}/refazer`)).empresas);
+    } catch (e) {
+      setErro((e as Error).message);
+    }
+  }
 
   async function refazer() {
     setOcupado(true);
     setErro(null);
     try {
       await chamarApi(`/api/pesquisas/${id}/refazer`, { corpo: {} });
-      setAberto(false);
+      setEmpresas(null);
       router.refresh();
     } catch (e) {
       setErro((e as Error).message);
@@ -31,27 +40,37 @@ export function RefazerPesquisa({ id, nome, botao }: { id: string; nome: string;
     <>
       <button
         className={botao ? "botao-sec" : "inline-flex items-center gap-1 text-xs text-slate-500 hover:text-marca-700"}
-        onClick={() => setAberto(true)}
-        title={`Refazer a pesquisa ${nome}`}
+        onClick={pedir}
+        title={`Refazer a pesquisa ${nome} do zero`}
       >
         <RotateCw className={botao ? "size-4" : "size-3.5"} /> Refazer
       </button>
+      {erro && empresas === null && <span className="ml-1 text-xs text-rose-700">{erro}</span>}
       <ModalConfirmacao
-        aberto={aberto}
-        titulo="Refazer pesquisa?"
-        textoConfirmar="Refazer agora"
+        aberto={empresas !== null}
+        perigo
+        titulo="Refazer pesquisa do zero?"
+        textoConfirmar="Sim, refazer"
         ocupado={ocupado}
         erro={erro}
         aoConfirmar={refazer}
         aoFechar={() => {
-          setAberto(false);
+          setEmpresas(null);
           setErro(null);
         }}
       >
         <p>
-          A pesquisa <strong className="text-slate-900">{nome}</strong> será feita de novo com as regras e fontes atuais.
+          Todos os registros de <strong className="text-slate-900">{nome}</strong> serão apagados
+          {empresas ? (
+            <>
+              , incluindo <strong className="text-slate-900">{empresas} empresa(s)</strong> ainda não contatada(s)
+            </>
+          ) : null}
+          , e a pesquisa será feita de novo com as regras atuais.
         </p>
-        <p className="mt-2">As empresas já encontradas continuam (sem duplicar) e as conversas não são afetadas.</p>
+        <p className="mt-2">
+          Empresas em conversa, com contrato ou encontradas por outra pesquisa continuam no CRM. O histórico de gastos é mantido. Não dá para desfazer.
+        </p>
       </ModalConfirmacao>
     </>
   );

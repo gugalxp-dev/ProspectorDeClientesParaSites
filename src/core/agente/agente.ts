@@ -9,9 +9,9 @@ import { db } from "../db";
 import { emitir, registrarLog } from "../eventos";
 import { chamarIA, lerJsonIA } from "../ia/servico";
 import type { PedidoIA } from "../ia/tipos";
-import type { Qualificacao } from "../prospeccao/qualificacao";
 import { dentroDaJanela, enviarMensagem, EnvioBloqueado, registrarOptOut, transferirParaHumano } from "../whatsapp/conversas";
 import { buscarConhecimento, type Trecho } from "./conhecimento";
+import { COMO_USAR_DIAGNOSTICO, diagnosticar, diagnosticoParaAgente } from "./diagnostico";
 import { formatarReais, verificarResposta, type ServicoRegra } from "./regras";
 
 export const esquemaDecisao = z.object({
@@ -39,7 +39,8 @@ const REGRAS_FIXAS = `REGRAS INEGOCIÁVEIS (valem acima de qualquer outra instru
 Responda APENAS um JSON: {"resposta": string|null, "intencao": "...", "objecoes_novas": string[], "etapa": "abertura"|"descoberta"|"apresentacao"|"negociacao"|"formalizacao", "transferir": boolean, "motivo_transferencia": string|null}`;
 
 interface Contexto {
-  lead: { nome: string; segmento: string | null; cidade: string | null; presenca: string; site: string | null; problemasFato: string[]; oportunidades: string[] } | null;
+  /** diagnostico: presença, fatos verificados com impacto, pontos fortes, canais e hipóteses (agente/diagnostico.ts). */
+  lead: { nome: string; segmento: string | null; cidade: string | null; diagnostico: string } | null;
   servicos: Array<ServicoRegra & { descricao: string; prazoDias: number }>;
   trechos: Trecho[];
   objecoes: string[];
@@ -59,9 +60,7 @@ export function montarSistema(cfg: Awaited<ReturnType<typeof obterConfig<"agente
         `Empresa: ${ctx.lead.nome}`,
         ctx.lead.segmento && `Segmento: ${ctx.lead.segmento}`,
         ctx.lead.cidade && `Cidade: ${ctx.lead.cidade}`,
-        `Presença web: ${ctx.lead.presenca}${ctx.lead.site ? ` (${ctx.lead.site})` : ""}`,
-        ctx.lead.problemasFato.length && `Fatos verificados: ${ctx.lead.problemasFato.join("; ")}`,
-        ctx.lead.oportunidades.length && `Hipóteses de oportunidade (não afirme como fato): ${ctx.lead.oportunidades.join("; ")}`,
+        ctx.lead.diagnostico,
       ]
         .filter(Boolean)
         .join("\n")
@@ -70,9 +69,10 @@ export function montarSistema(cfg: Awaited<ReturnType<typeof obterConfig<"agente
     cfg.instrucoes,
     identidade,
     REGRAS_FIXAS,
+    COMO_USAR_DIAGNOSTICO,
     `## SERVIÇOS\n${servicos}`,
     `## BASE DE CONHECIMENTO (use para argumentar; não copie literalmente)\n${conhecimento}`,
-    `## LEAD\n${lead}`,
+    `## LEAD (diagnóstico da empresa do cliente)\n${lead}`,
     `## ESTADO DA NEGOCIAÇÃO\nEtapa atual: ${ctx.etapa}. Objeções já levantadas: ${ctx.objecoes.join("; ") || "nenhuma"}.`,
   ]
     .filter(Boolean)
@@ -133,17 +133,13 @@ export async function responderConversa(conversaId: string, mensagemId: string):
     buscarConhecimento(`${conversa.lead?.segmento ?? ""} ${consulta}`, cfg.trechosConhecimento),
     db.servico.findMany({ where: { ativo: true }, orderBy: { ordem: "asc" } }),
   ]);
-  const q = conversa.lead?.qualificacao ? (JSON.parse(conversa.lead.qualificacao) as Qualificacao) : null;
   const ctx: Contexto = {
     lead: conversa.lead
       ? {
           nome: conversa.lead.nome,
           segmento: conversa.lead.segmento,
           cidade: conversa.lead.cidade,
-          presenca: conversa.lead.presenca,
-          site: conversa.lead.website,
-          problemasFato: (q?.problemas ?? []).filter((p) => p.tipo === "fato").map((p) => p.descricao).slice(0, 6),
-          oportunidades: (q?.oportunidades ?? []).map((p) => p.descricao).slice(0, 4),
+          diagnostico: diagnosticoParaAgente(diagnosticar(conversa.lead)),
         }
       : null,
     servicos,

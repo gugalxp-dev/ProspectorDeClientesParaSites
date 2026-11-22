@@ -16,6 +16,7 @@ import { enfileirar } from "../fila";
 import { hashTelefone } from "../prospeccao/importar";
 import { normalizarTelefone } from "../telefone";
 import type { ChaveEtapa } from "../tipos";
+import { ganchoPrimeiroContato } from "../agente/diagnostico";
 import { clienteWhatsApp, ErroWhatsApp, modoWhatsApp } from "./cliente";
 import type { EntradaWhatsApp, StatusWhatsApp } from "./webhook";
 
@@ -282,6 +283,8 @@ export async function iniciarContato(leadId: string, usuarioId: string) {
           .replaceAll("{nome}", lead.nome)
           .replaceAll("{agente}", cfg.nomeAgente || "a equipe")
           .replaceAll("{empresa}", cfg.nomeEmpresa || "nossa empresa")
+          .replaceAll("{gancho}", ganchoPrimeiroContato(lead))
+          .replace(/s{2,}/g, " ")
       : undefined;
   if (cliente.modo === "baileys" && !texto?.trim()) throw new EnvioBloqueado("Configure o texto do primeiro contato (modo Baileys) em Admin > Agente.");
 

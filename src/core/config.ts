@@ -69,11 +69,11 @@ export const esquemaAgente = z.object({
   mensagemOptOut: z.string().max(500).default("Tudo bem, não enviaremos mais mensagens. Obrigado pela atenção!"),
   templatePrimeiroContato: z.string().max(512).default(""),
   idiomaTemplate: z.string().max(10).default("pt_BR"),
-  /** Modo Baileys (sem templates da Meta): texto do primeiro contato. Aceita {nome}, {agente} e {empresa}. */
+  /** Modo Baileys (sem templates da Meta): texto do primeiro contato. Aceita {nome}, {agente}, {empresa} e {gancho} (frase tirada do diagnóstico da empresa). */
   mensagemPrimeiroContato: z
     .string()
     .max(1000)
-    .default("Olá! Tudo bem? Aqui é {agente}, da {empresa}. Trabalhamos com sites para empresas como a {nome}. Posso te mostrar uma ideia rápida?"),
+    .default("Olá! Tudo bem? Aqui é {agente}, da {empresa}. {gancho} Trabalhamos com sites para empresas como a {nome}. Posso te mostrar uma ideia rápida?"),
   /** Quantas mensagens do histórico vão no contexto. */
   historicoMaximo: z.number().int().min(4).max(60).default(20),
   trechosConhecimento: z.number().int().min(1).max(12).default(5),

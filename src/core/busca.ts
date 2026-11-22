@@ -24,6 +24,8 @@ export async function criarBusca(dados: { nicho: string; cidade: string; fontes?
     .map(([id]) => id);
   const fontes = (dados.fontes?.length ? dados.fontes.filter((f) => ativas.includes(f)) : ativas).filter((f) => fonte(f));
   if (!fontes.length) throw new Error("Nenhuma fonte de descoberta ativa. Ative uma em Admin > Prospecção.");
+  const igual = await pesquisaIgual(dados.nicho, dados.cidade);
+  if (igual) throw new PesquisaDuplicada(igual);
 
   const busca = await db.busca.create({
     data: { nicho: dados.nicho.trim(), cidade: dados.cidade.trim(), fontes: JSON.stringify(fontes), criadoPorId: usuarioId },
@@ -73,10 +75,12 @@ export async function cancelarBusca(id: string): Promise<void> {
 }
 
 /**
- * Refaz a mesma pesquisa (mesmo segmento e cidade) com as regras e fontes atuais.
- * Zera andamento, contadores e log; as empresas já encontradas continuam e são reaproveitadas (sem duplicar).
+ * Refaz a pesquisa DO ZERO (mesmo segmento e cidade) com as regras e fontes atuais.
+ * Apaga as empresas que eram só desta pesquisa e ainda não foram contatadas, desliga as demais
+ * (em conversa, com contrato ou de outra pesquisa: ficam no CRM e voltam a ser ligadas se achadas de novo),
+ * zera andamento, contadores e log, e busca de novo. O histórico de gastos é mantido.
  */
-export async function refazerBusca(id: string): Promise<void> {
+export async function refazerBusca(id: string): Promise<{ empresasApagadas: number }> {
   const b = await db.busca.findUniqueOrThrow({ where: { id } });
   const cfg = await obterConfig("prospeccao");
   const fontes = Object.entries(cfg.fontes)
@@ -84,6 +88,10 @@ export async function refazerBusca(id: string): Promise<void> {
     .map(([fid]) => fid);
   if (!fontes.length) throw new Error("Nenhuma fonte de descoberta ativa. Ative uma em Admin > Prospecção.");
   await cancelarJobsDaBusca(id);
+  const apagar = await leadsSoDestaBusca(id);
+  await db.registroCusto.updateMany({ where: { OR: [{ buscaId: id }, { leadId: { in: apagar } }] }, data: { buscaId: null, leadId: null } });
+  await db.lead.deleteMany({ where: { id: { in: apagar } } });
+  await db.buscaLead.deleteMany({ where: { buscaId: id } });
   await db.job.deleteMany({ where: { buscaId: id } });
   await db.logOperacao.deleteMany({ where: { buscaId: id } });
   await db.busca.update({
@@ -94,8 +102,35 @@ export async function refazerBusca(id: string): Promise<void> {
   for (const f of fontes) {
     await enfileirar("busca_descobrir", { buscaId: id, fonte: f }, { chave: `descobrir:${id}:${f}:${vez}`, buscaId: id, maxTentativas: 4 });
   }
-  await registrarLog("info", "descoberta", `Pesquisa refeita: ${b.nicho} em ${b.cidade}.`, { buscaId: id });
+  await registrarLog("info", "descoberta", `Pesquisa refeita do zero: ${b.nicho} em ${b.cidade} (${apagar.length} empresa(s) anteriores removidas).`, { buscaId: id });
   await emitir("busca.atualizada", { id });
+  await emitir("lead.atualizado", { removidos: apagar.length });
+  return { empresasApagadas: apagar.length };
+}
+
+/** "Salões de beleza" e "salao de beleza " são a mesma pesquisa: compara sem acento, caixa e espaços extras. */
+export function chavePesquisa(nicho: string, cidade: string): string {
+  const n = (t: string) =>
+    t
+      .normalize("NFD")
+      .replace(/[̀-ͯ]/g, "")
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, " ")
+      .trim();
+  return `${n(nicho)}|${n(cidade)}`;
+}
+
+/** Pesquisa já existente com o mesmo segmento e cidade (cada pesquisa é única: para repetir, use Refazer). */
+export async function pesquisaIgual(nicho: string, cidade: string): Promise<{ id: string; nicho: string; cidade: string } | null> {
+  const chave = chavePesquisa(nicho, cidade);
+  const todas = await db.busca.findMany({ select: { id: true, nicho: true, cidade: true } });
+  return todas.find((b) => chavePesquisa(b.nicho, b.cidade) === chave) ?? null;
+}
+
+export class PesquisaDuplicada extends Error {
+  constructor(public existente: { id: string; nicho: string; cidade: string }) {
+    super(`Já existe a pesquisa "${existente.nicho} — ${existente.cidade}". Para buscar de novo, use "Refazer" nela.`);
+  }
 }
 
 /** Empresas que sairiam junto: só desta pesquisa e ainda não contatadas (ninguém mexeu nelas). */
