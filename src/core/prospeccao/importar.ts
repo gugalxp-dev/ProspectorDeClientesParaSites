@@ -111,7 +111,7 @@ async function importarSemConcorrencia(buscaId: string, nicho: string, cidade: s
           uf: existente.uf ?? l.uf ?? null,
           lat: existente.lat ?? l.lat ?? null,
           lon: existente.lon ?? l.lon ?? null,
-          telefone: existente.telefone ?? l.telefone ?? null,
+          telefone: existente.telefone ?? tel.formatado ?? l.telefone ?? null,
           telefoneE164: existente.telefoneE164 ?? tel.e164,
           ehCelular: existente.ehCelular || (!existente.telefoneE164 && tel.ehCelular),
           whatsappE164: existente.whatsappE164 ?? waFixo,
@@ -137,7 +137,7 @@ async function importarSemConcorrencia(buscaId: string, nicho: string, cidade: s
           uf: l.uf ?? null,
           lat: l.lat ?? null,
           lon: l.lon ?? null,
-          telefone: l.telefone ?? null,
+          telefone: tel.formatado ?? l.telefone ?? null, // padronizado: (13) 99157-7715
           telefoneE164: tel.e164,
           ehCelular: tel.ehCelular,
           whatsappE164: waFixo,

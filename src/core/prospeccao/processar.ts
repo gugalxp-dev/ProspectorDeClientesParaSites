@@ -96,6 +96,7 @@ export async function processarLead(leadId: string, buscaId?: string | null, opc
       siteAvaliacao: JSON.stringify(avaliacao),
       siteAvaliadoEm: new Date(),
       telefoneE164: trocarPorCelular ? celSite!.e164 : (l.telefoneE164 ?? telSite?.e164 ?? null),
+      telefone: trocarPorCelular ? celSite!.formatado : (l.telefone ?? telSite?.formatado ?? null),
       ehCelular: trocarPorCelular ? true : l.telefoneE164 ? l.ehCelular : (telSite?.ehCelular ?? false),
       whatsappE164: l.whatsappE164 ?? whatsapp,
       emails,

@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Check, Send, X } from "lucide-react";
 import { chamarApi } from "./api";
-import { Score, SeloPresenca } from "./ui";
+import { Score, SeloPresenca, telefoneFmt } from "./ui";
 
 interface LeadAprovar {
   id: string;
@@ -89,7 +89,7 @@ export function AprovarContatos({ leads, etapaPerdidoId }: { leads: LeadAprovar[
               <Link href={`/leads/${l.id}`} className="font-medium text-marca-700 hover:underline">{l.nome}</Link>
               <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
                 <span>{[l.segmento, l.cidade].filter(Boolean).join(" · ")}</span>
-                <span>{l.whatsappE164 ?? l.telefoneE164}</span>
+                <span className="tabular-nums">{telefoneFmt(l.whatsappE164, l.telefoneE164)}</span>
                 <SeloPresenca presenca={l.presenca} />
               </div>
               {erros[l.id] && <p className="text-xs text-rose-700">{erros[l.id]}</p>}

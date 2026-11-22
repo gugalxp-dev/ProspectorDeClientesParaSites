@@ -7,7 +7,7 @@ import { headers } from "next/headers";
 import { ContratoLead } from "@/components/ContratoLead";
 import { ConversaLead } from "@/components/ConversaLead";
 import { NotasLead } from "@/components/NotasLead";
-import { Score, SeloContato, SeloPresenca, SeloQualificacao, COR_ETAPA, dataHora, usd } from "@/components/ui";
+import { Score, SeloContato, SeloPresenca, SeloQualificacao, COR_ETAPA, dataHora, telefoneFmt, usd } from "@/components/ui";
 import { dadosIniciais, esquemaDadosContrato, linkPublico } from "@/core/contratos";
 import { obterConfig } from "@/core/config";
 import { obterLeadCompleto } from "@/core/crm/leads";
@@ -105,8 +105,8 @@ export default async function Lead({ params, searchParams }: { params: Promise<{
             <dl>
               <Linha rotulo="Segmento / categoria">{[l.segmento, l.categoria].filter(Boolean).join(" · ")}</Linha>
               <Linha rotulo="Endereço">{[l.endereco, l.cidade, l.uf].filter(Boolean).join(", ")}</Linha>
-              <Linha rotulo="Telefone">{l.telefone ?? l.telefoneE164}{l.ehCelular ? " (celular)" : ""}</Linha>
-              <Linha rotulo="WhatsApp identificado">{l.whatsappE164}</Linha>
+              <Linha rotulo="Telefone">{telefoneFmt(l.telefoneE164, l.telefone)}{l.telefoneE164 || l.telefone ? (l.ehCelular ? " (celular)" : " (fixo)") : ""}</Linha>
+              <Linha rotulo="WhatsApp identificado">{telefoneFmt(l.whatsappE164)}</Linha>
               <Linha rotulo="E-mail">{l.emails}</Linha>
               <Linha rotulo="Site">{l.website && <LinkExterno href={l.website} />}</Linha>
               <Linha rotulo="Instagram">{l.instagram && <LinkExterno href={l.instagram} />}</Linha>

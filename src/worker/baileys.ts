@@ -128,7 +128,7 @@ async function conectar(): Promise<void> {
   const { state, saveCreds } = await useMultiFileAuthState(PASTA_SESSAO);
   const { version } = await fetchLatestBaileysVersion().catch(() => ({ version: undefined }));
   // Apresenta-se como um WhatsApp Web comum no Windows (nome incomum chama atenção).
-  const s = makeWASocket({ auth: state, logger, version, markOnlineOnConnect: false, syncFullHistory: false, browser: Browsers.windows("Chrome") });
+  const s = makeWASocket({ auth: state, logger, version, markOnlineOnConnect: false, syncFullHistory: false, browser: Browsers.windows("Chrome"), generateHighQualityLinkPreview: true });
   sock = s;
 
   s.ev.on("creds.update", saveCreds);

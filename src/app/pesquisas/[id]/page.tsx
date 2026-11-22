@@ -3,7 +3,7 @@ import { ExcluirPesquisa } from "@/components/ExcluirPesquisa";
 import { RefazerPesquisa } from "@/components/RefazerPesquisa";
 import { notFound } from "next/navigation";
 import { AtualizarAoVivo } from "@/components/AoVivo";
-import { Barra, Score, SeloPresenca, SeloQualificacao, Titulo, Vazio, dataHora, usd } from "@/components/ui";
+import { Barra, Score, SeloPresenca, SeloQualificacao, Titulo, Vazio, dataHora, telefoneFmt, usd } from "@/components/ui";
 import { resumoBusca } from "@/core/busca";
 import { db } from "@/core/db";
 import { STATUS_BUSCA_ROTULO } from "@/core/tipos";
@@ -108,7 +108,7 @@ export default async function Pesquisa({ params, searchParams }: { params: Promi
                     <div className="text-xs text-slate-500">{l.categoria}</div>
                   </td>
                   <td><SeloPresenca presenca={l.presenca} confianca={l.presencaConfianca} /></td>
-                  <td className="whitespace-nowrap text-xs">{l.telefone ?? "—"}</td>
+                  <td className="whitespace-nowrap text-xs tabular-nums">{telefoneFmt(l.telefone) ?? "—"}</td>
                   <td><SeloQualificacao status={l.qualificacaoStatus} /></td>
                 </tr>
               ))}

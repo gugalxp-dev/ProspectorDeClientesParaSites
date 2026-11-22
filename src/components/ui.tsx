@@ -1,6 +1,17 @@
 // Peças visuais compartilhadas (sem estado).
 
+import { normalizarTelefone } from "@/core/telefone";
 import { PRESENCA_ROTULO, type Presenca } from "@/core/tipos";
+
+/** Telefone sempre no mesmo formato: (13) 99157-7715. Usa o primeiro valor que der para entender. */
+export function telefoneFmt(...valores: Array<string | null | undefined>): string | null {
+  for (const v of valores) {
+    if (!v) continue;
+    const t = normalizarTelefone(v);
+    if (t.formatado && t.tipo !== "especial") return t.formatado;
+  }
+  return valores.find(Boolean) ?? null;
+}
 
 export const COR_ETAPA: Record<string, string> = {
   slate: "bg-slate-400",

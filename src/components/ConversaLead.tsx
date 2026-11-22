@@ -7,7 +7,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { Bot, FlaskConical, Hand, Send } from "lucide-react";
 import { chamarApi } from "./api";
-import { dataHora } from "./ui";
+import { dataHora, telefoneFmt } from "./ui";
 
 interface Mensagem {
   id: string;
@@ -67,7 +67,7 @@ export function ConversaLead({ leadId, conversa, simulador, podeSimularSemConver
         <h2 className="font-medium">Conversa no WhatsApp</h2>
         {conversa && (
           <>
-            <span className="text-xs text-slate-500">{conversa.telefone}</span>
+            <span className="text-xs tabular-nums text-slate-500">{telefoneFmt(conversa.telefone)}</span>
             <span className={`selo ${conversa.agenteAtivo && conversa.status === "ativa" ? "bg-emerald-100 text-emerald-800" : "bg-rose-100 text-rose-800"}`}>
               {conversa.status === "encerrada" ? "Encerrada" : conversa.agenteAtivo && conversa.status === "ativa" ? "Agente ativo" : "Atendimento humano"}
             </span>

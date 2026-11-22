@@ -8,7 +8,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Bot, Globe, Phone, User } from "lucide-react";
 import { chamarApi } from "./api";
-import { COR_ETAPA, Score, SeloPresenca, data, dataHora } from "./ui";
+import { COR_ETAPA, Score, SeloPresenca, data, dataHora, telefoneFmt } from "./ui";
 
 export interface CartaoLead {
   id: string;
@@ -127,7 +127,7 @@ function Cartao({ lead: l, etapas, mover }: { lead: CartaoLead; etapas: ColunaKa
       </div>
       <dl className="mt-2 space-y-0.5 text-xs text-slate-600">
         {l.telefone && (
-          <div className="flex items-center gap-1"><Phone className="size-3" /> {l.telefone}</div>
+          <div className="flex items-center gap-1 tabular-nums"><Phone className="size-3" /> {telefoneFmt(l.telefone)}</div>
         )}
         {l.website && (
           <div className="flex items-center gap-1 truncate"><Globe className="size-3 shrink-0" /> <span className="truncate">{l.website.replace(/^https?:\/\//, "")}</span></div>
