@@ -386,7 +386,12 @@ export async function processarEntrada(e: EntradaWhatsApp): Promise<{ mensagemId
     await registrarConsentimento(lead.id, { origem: "O cliente enviou mensagem pelo WhatsApp.", baseLegal: "consentimento", evidencia: `wamid ${e.waMessageId}`, telefone: tel }, "cliente");
   }
 
-  const conv = await db.conversa.findUniqueOrThrow({ where: { id: conversa.id } });
+  let conv = await db.conversa.findUniqueOrThrow({ where: { id: conversa.id } });
+  // Conversa encerrada por falta de interesse: o cliente voltou a escrever, então o agente retoma.
+  if (conv.status === "encerrada" && !lead.automacaoPausada && !lead.naoContatar && lead.contatoStatus !== "opt_out") {
+    conv = await db.conversa.update({ where: { id: conv.id }, data: { status: "ativa", agenteAtivo: true, saidasSemResposta: 0 } });
+    await db.interacaoLead.create({ data: { leadId: lead.id, tipo: "agente", descricao: "Cliente voltou a conversar; o agente retomou." } });
+  }
   if (conv.status === "transferida" || !conv.agenteAtivo || lead.automacaoPausada) {
     const n = await db.notificacao.create({
       data: { tipo: "transferencia", titulo: `Nova mensagem de ${lead.nome}`, mensagem: e.texto.slice(0, 300), leadId: lead.id },

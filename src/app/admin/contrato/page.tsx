@@ -7,7 +7,7 @@ import { esquemaDadosContrato, reais, VARIAVEIS } from "@/core/contratos";
 import { db } from "@/core/db";
 import { exigirAdmin } from "@/lib/auth";
 
-const STATUS: Record<string, string> = { rascunho: "Rascunho", pronto: "Pronto", enviado: "Enviado", visualizado: "Cliente abriu", aceito: "Aceito", cancelado: "Cancelado" };
+const STATUS: Record<string, string> = { rascunho: "Rascunho", pronto: "Pronto", enviado: "Enviado", visualizado: "Cliente abriu", aceito: "Aceito", cobrado: "Cobrado", cancelado: "Cancelado" };
 
 export default async function AdminContrato() {
   await exigirAdmin("/admin/contrato");
@@ -65,7 +65,7 @@ export default async function AdminContrato() {
                   <td className="font-mono text-xs">{c.numero}</td>
                   <td><Link href={`/leads/${c.lead.id}`} className="text-marca-700 hover:underline">{c.lead.nome}</Link></td>
                   <td className="tabular-nums">{reais(esquemaDadosContrato.parse(JSON.parse(c.dados)).valorCentavos)}</td>
-                  <td className={c.status === "aceito" ? "font-semibold text-emerald-700" : ""}>{STATUS[c.status] ?? c.status}</td>
+                  <td className={["aceito", "cobrado"].includes(c.status) ? "font-semibold text-emerald-700" : ""}>{STATUS[c.status] ?? c.status}</td>
                   <td className="text-xs">{dataHora(c.criadoEm)}</td>
                 </tr>
               ))}

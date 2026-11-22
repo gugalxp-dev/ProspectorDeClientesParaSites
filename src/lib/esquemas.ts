@@ -17,6 +17,7 @@ export const esquemaServico = z.object({
   prazoDias: z.number().int().min(1).max(365),
   condicoes: z.string().trim().max(2000).optional().nullable(),
   descontoMaxPct: z.number().int().min(0).max(100),
+  descontoMaxCentavos: z.number().int().min(0).max(100_000_000).default(0),
   ativo: z.boolean().default(true),
   ordem: z.number().int().min(0).max(1000).default(0),
 });

@@ -107,7 +107,7 @@ export async function dadosIniciais(leadId: string): Promise<DadosContrato> {
 }
 
 /** Cria ou atualiza o rascunho do lead (um rascunho por vez). */
-export async function salvarRascunho(leadId: string, dados: DadosContrato, usuarioId: string) {
+export async function salvarRascunho(leadId: string, dados: DadosContrato, usuarioId: string | null) {
   const atual = await db.contrato.findFirst({ where: { leadId, status: "rascunho" } });
   if (atual) return db.contrato.update({ where: { id: atual.id }, data: { dados: JSON.stringify(dados) } });
   const c = await db.contrato.create({ data: { leadId, numero: await proximoNumero(), dados: JSON.stringify(dados), criadoPorId: usuarioId } });
@@ -116,7 +116,7 @@ export async function salvarRascunho(leadId: string, dados: DadosContrato, usuar
 }
 
 /** Congela o texto e cria o link público. Depois disso o contrato não muda mais (para mudar: cancelar e gerar outro). */
-export async function finalizar(contratoId: string, usuarioId: string) {
+export async function finalizar(contratoId: string, usuarioId: string | null) {
   const [c, cfg] = await Promise.all([db.contrato.findUniqueOrThrow({ where: { id: contratoId } }), obterConfig("contrato")]);
   if (c.status !== "rascunho") return c;
   const dados = esquemaDadosContrato.parse(JSON.parse(c.dados));
@@ -140,7 +140,7 @@ export async function finalizar(contratoId: string, usuarioId: string) {
 }
 
 /** Manda o link pelo WhatsApp (mesmas regras de qualquer envio: opt-out, limites, janela de 24 h na API oficial). */
-export async function enviarPorWhatsApp(contratoId: string, usuarioId: string, origem?: string) {
+export async function enviarPorWhatsApp(contratoId: string, usuarioId: string | null, origem?: string) {
   const [c, cfg] = await Promise.all([db.contrato.findUniqueOrThrow({ where: { id: contratoId }, include: { lead: true } }), obterConfig("contrato")]);
   if (!["pronto", "enviado", "visualizado"].includes(c.status)) throw new ErroContrato("Finalize o contrato antes de enviar.");
   const tel = c.lead.whatsappE164 ?? (c.lead.ehCelular ? c.lead.telefoneE164 : null);
@@ -160,7 +160,7 @@ export async function enviarPorWhatsApp(contratoId: string, usuarioId: string, o
 
 export async function cancelar(contratoId: string, usuarioId: string) {
   const c = await db.contrato.findUniqueOrThrow({ where: { id: contratoId } });
-  if (c.status === "aceito") throw new ErroContrato("Contrato já aceito pelo cliente não pode ser cancelado por aqui.");
+  if (["aceito", "cobrado"].includes(c.status)) throw new ErroContrato("Contrato já aceito pelo cliente não pode ser cancelado por aqui.");
   await db.contrato.update({ where: { id: c.id }, data: { status: "cancelado", canceladoEm: new Date(), tokenHash: null } });
   await auditar(usuarioId, "contrato_cancelado", c.leadId, { numero: c.numero });
 }
@@ -186,7 +186,7 @@ export async function marcarVisualizado(id: string) {
 export async function aceitar(token: string, aceite: { nome: string; documento: string; ip: string; navegador: string }) {
   const c = await contratoPorToken(token);
   if (!c || c.status === "cancelado" || c.status === "rascunho") throw new ErroContrato("Contrato não encontrado ou cancelado.");
-  if (c.status === "aceito") return c;
+  if (["aceito", "cobrado"].includes(c.status)) return c;
   const r = await db.contrato.update({
     where: { id: c.id },
     data: { status: "aceito", aceitoEm: new Date(), aceiteNome: aceite.nome, aceiteDocumento: aceite.documento, aceiteIp: aceite.ip, aceiteNavegador: aceite.navegador.slice(0, 300) },
@@ -195,11 +195,52 @@ export async function aceitar(token: string, aceite: { nome: string; documento: 
   await db.lead.update({ where: { id: c.leadId }, data: { etapaId: await idEtapa("fechado"), revisao: { increment: 1 } } });
   await db.interacaoLead.create({ data: { leadId: c.leadId, tipo: "contrato", descricao: `Contrato nº ${c.numero} ACEITO por ${aceite.nome} (${aceite.documento}).` } });
   const lead = await db.lead.findUnique({ where: { id: c.leadId }, select: { nome: true } });
+  const dados = esquemaDadosContrato.parse(JSON.parse(c.dados));
+  // Hora de cobrar: resumo com tudo que a pessoa precisa para mandar o link de pagamento.
+  const resumo = [
+    `${dados.servico} por ${reais(dados.valorCentavos)}`,
+    `Pagamento: ${dados.formaPagamento}`,
+    `Contratante: ${dados.contratanteNome} (${dados.contratanteDocumento})`,
+    dados.contratanteEmail && `E-mail: ${dados.contratanteEmail}`,
+    dados.contratanteTelefone && `Telefone: ${dados.contratanteTelefone}`,
+    `Aceito por ${aceite.nome} (${aceite.documento})`,
+  ]
+    .filter(Boolean)
+    .join(" · ");
   const n = await db.notificacao.create({
-    data: { tipo: "contrato_aceito", titulo: `Contrato aceito: ${lead?.nome ?? c.numero}`, mensagem: `Contrato nº ${c.numero} aceito por ${aceite.nome}.`, leadId: c.leadId },
+    data: { tipo: "cobranca", titulo: `Enviar link de pagamento: ${lead?.nome ?? c.numero}`, mensagem: resumo, leadId: c.leadId },
   });
+  await avisarClienteECobrar(c.leadId, dados, resumo);
   await auditar(null, "contrato_aceito", c.leadId, { numero: c.numero, ip: aceite.ip });
   await emitir("notificacao.nova", { id: n.id, leadId: c.leadId });
   await emitir("lead.atualizado", { id: c.leadId });
   return r;
+}
+
+/**
+ * Depois do aceite: confirma ao cliente no WhatsApp que o link de pagamento vem a seguir, pausa o agente
+ * (daqui em diante é com a pessoa) e registra o resumo da cobrança. Falha no WhatsApp não desfaz o aceite.
+ */
+async function avisarClienteECobrar(leadId: string, dados: DadosContrato, resumo: string) {
+  const conversa = await db.conversa.findUnique({ where: { leadId } });
+  if (conversa) {
+    try {
+      await enviarMensagem({ conversaId: conversa.id, autor: "sistema", texto: `Contrato recebido, obrigado! ✅ Já já te envio o link de pagamento (${dados.formaPagamento}).` });
+    } catch {
+      // o aceite já valeu; a pessoa avisa o cliente junto com o link
+    }
+    await db.conversa.update({ where: { id: conversa.id }, data: { status: "transferida", agenteAtivo: false } });
+  }
+  await db.lead.update({ where: { id: leadId }, data: { automacaoPausada: true, transferidoEm: new Date(), motivoTransferencia: `Contrato aceito: enviar link de pagamento. ${resumo}` } });
+  await db.interacaoLead.create({ data: { leadId, tipo: "transferencia", descricao: `Pronto para cobrar: ${resumo}` } });
+}
+
+/** Link de pagamento enviado: o contrato sai da lista de cobranças pendentes. */
+export async function marcarCobrado(contratoId: string, usuarioId: string) {
+  const c = await db.contrato.findUniqueOrThrow({ where: { id: contratoId } });
+  if (c.status !== "aceito") throw new ErroContrato("Só contratos aceitos podem ser marcados como cobrados.");
+  await db.contrato.update({ where: { id: c.id }, data: { status: "cobrado" } });
+  await db.interacaoLead.create({ data: { leadId: c.leadId, tipo: "contrato", descricao: `Link de pagamento do contrato nº ${c.numero} enviado.`, usuarioId } });
+  await auditar(usuarioId, "contrato_cobrado", c.leadId, { numero: c.numero });
+  await emitir("lead.atualizado", { id: c.leadId });
 }

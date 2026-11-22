@@ -1,6 +1,6 @@
 // Ações sobre um contrato: finalizar (congela e cria o link), enviar (WhatsApp) e cancelar.
 
-import { cancelar, enviarPorWhatsApp, ErroContrato, finalizar, linkPublico } from "@/core/contratos";
+import { cancelar, enviarPorWhatsApp, ErroContrato, finalizar, linkPublico, marcarCobrado } from "@/core/contratos";
 import { db } from "@/core/db";
 import { EnvioBloqueado } from "@/core/whatsapp/conversas";
 import { jsonErro, rota } from "@/lib/http";
@@ -18,6 +18,10 @@ export const POST = rota<P>(async (req, { params, usuario }) => {
     }
     if (acao === "enviar") {
       await enviarPorWhatsApp(id, usuario.id, origem);
+      return Response.json({ ok: true });
+    }
+    if (acao === "cobrado") {
+      await marcarCobrado(id, usuario.id);
       return Response.json({ ok: true });
     }
     if (acao === "cancelar") {

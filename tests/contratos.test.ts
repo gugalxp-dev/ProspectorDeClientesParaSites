@@ -63,7 +63,12 @@ describe("contratos", () => {
     expect(c).toMatchObject({ status: "aceito", aceiteNome: "João da Silva", aceiteIp: "1.2.3.4" });
     const l = await db.lead.findUniqueOrThrow({ where: { id: lead.id }, include: { etapa: true } });
     expect(l.etapa?.chave).toBe("fechado");
-    expect(await db.notificacao.count({ where: { tipo: "contrato_aceito" } })).toBe(1);
+    // Hora de cobrar: notificação com o resumo, agente pausado e cliente avisado no WhatsApp.
+    const n = await db.notificacao.findFirstOrThrow({ where: { tipo: "cobranca" } });
+    expect(n.mensagem).toMatch(/Pagamento:/);
+    expect(l.automacaoPausada).toBe(true);
+    expect((await db.conversa.findUniqueOrThrow({ where: { leadId: lead.id } })).status).toBe("transferida");
+    expect(await db.mensagem.count({ where: { conteudo: { contains: "link de pagamento" } } })).toBe(1);
   });
 
   it("texto finalizado não muda mesmo se o modelo for alterado depois", async () => {

@@ -19,6 +19,7 @@ export default async function AdminAgente() {
         titulo="Comportamento"
         campos={[
           { caminho: "ativo", rotulo: "Agente ativo (desligar pausa todas as respostas automáticas)", tipo: "booleano" },
+          { caminho: "iaFechaVenda", rotulo: "A IA fecha a venda (negocia, coleta os dados e envia o contrato)", tipo: "booleano", ajuda: "Você só entra depois que o cliente aceitar o contrato, para enviar o link de pagamento. Desligado: a IA transfere para você assim que o cliente aceitar a proposta." },
           { caminho: "nomeAgente", rotulo: "Nome do agente (opcional)", tipo: "texto" },
           { caminho: "nomeEmpresa", rotulo: "Nome da sua empresa", tipo: "texto" },
           { caminho: "siteEmpresa", rotulo: "Site / portfólio da sua empresa", tipo: "texto", ajuda: "Ex.: https://suaempresa.com.br. O agente envia quando o cliente pedir detalhes, exemplos de trabalho ou referências. Também pode ir no primeiro contato com {site}." },

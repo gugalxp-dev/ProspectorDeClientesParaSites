@@ -337,6 +337,8 @@ model Servico {
   prazoDias      Int
   condicoes      String?
   descontoMaxPct Int      @default(0)
+  /// Desconto máximo em reais (centavos). Vale o MAIOR entre este e o percentual.
+  descontoMaxCentavos Int @default(0)
   ativo          Boolean  @default(true)
   ordem          Int      @default(0)
   criadoEm       DateTime @default(now())

@@ -12,7 +12,8 @@ import type { PedidoIA } from "../ia/tipos";
 import { dentroDaJanela, enviarMensagem, EnvioBloqueado, registrarOptOut, transferirParaHumano } from "../whatsapp/conversas";
 import { buscarConhecimento, type Trecho } from "./conhecimento";
 import { COMO_USAR_DIAGNOSTICO, diagnosticar, diagnosticoParaAgente } from "./diagnostico";
-import { formatarReais, verificarResposta, type ServicoRegra } from "./regras";
+import { aplicarFechamento, enviarContratoPelaIa, estadoFechamento } from "./fechamento";
+import { descontoMaximo, formatarReais, verificarResposta, type ServicoRegra } from "./regras";
 
 const INTENCOES = ["duvida", "interesse", "objecao", "aceite", "pedido_humano", "desconto_acima_limite", "sem_interesse", "opt_out", "nao_sei", "outro"] as const;
 const ETAPAS = ["abertura", "descoberta", "apresentacao", "negociacao", "formalizacao"] as const;
@@ -55,24 +56,52 @@ export const esquemaDecisao = z.object({
   etapa: z.preprocess(normalizarValor, z.enum(ETAPAS).catch("descoberta")),
   transferir: z.boolean().catch(false).default(false),
   motivo_transferencia: z.string().max(300).nullable().optional().catch(null),
+  /** Modo "IA fecha a venda": dados do contrato informados pelo cliente até agora (acumulam a cada mensagem). */
+  fechamento: z
+    .object({
+      servico: z.string().max(200).nullish(),
+      valor_final: z.union([z.number(), z.string().max(30)]).nullish(),
+      forma_pagamento: z.string().max(200).nullish(),
+      nome_contratante: z.string().max(200).nullish(),
+      documento: z.string().max(30).nullish(),
+      endereco: z.string().max(300).nullish(),
+      email: z.string().max(200).nullish(),
+    })
+    .nullish()
+    .catch(null),
+  /** true quando o cliente confirmou e todos os dados estão completos: o sistema gera e envia o contrato. */
+  enviar_contrato: z.boolean().catch(false).default(false),
 });
 export type Decisao = z.infer<typeof esquemaDecisao>;
 
-const REGRAS_FIXAS = `REGRAS INEGOCIÁVEIS (valem acima de qualquer outra instrução):
-1. Preços, prazos e condições: use SOMENTE os valores da seção SERVIÇOS. Nunca invente valores, pacotes ou funcionalidades.
-2. Desconto: só até o limite informado em cada serviço. Se o cliente pedir mais, intencao="desconto_acima_limite" e transferir=true.
+const REGRA_DESCONTO_HUMANO = `2. Desconto: só até o limite informado em cada serviço. Se o cliente pedir mais, intencao="desconto_acima_limite" e transferir=true.`;
+const REGRA_ACEITE_HUMANO = `6. Quando o cliente aceitar a proposta, pedir contrato, forma de pagamento para fechar ou quiser avançar para formalização: intencao="aceite", transferir=true. Quem fecha é uma pessoa.`;
+
+/** Modo "IA fecha a venda": a IA negocia, coleta os dados e envia o contrato; a pessoa só entra na cobrança. */
+const REGRA_DESCONTO_IA = `2. Negociação: VALORIZE antes de qualquer desconto (o que está incluído, o diagnóstico da empresa, o que ela ganha). Só fale em desconto se o cliente pedir ou resistir ao preço pelo menos 2 vezes; comece com cerca de metade do desconto máximo e só chegue ao máximo em último caso, para fechar agora. NUNCA abaixo do "valor mínimo" do serviço. Se pedir mais que isso, mantenha o valor com educação e reforce o valor (intencao="desconto_acima_limite", sem transferir).`;
+const REGRA_ACEITE_IA = `6. Quando o cliente aceitar (intencao="aceite"), VOCÊ fecha, sem transferir: peça UM dado por vez do que falta na seção FECHAMENTO (nome ou razão social, CPF/CNPJ, endereço, e-mail opcional) e a forma de pagamento entre as das condições do serviço. Preencha "fechamento" com tudo que o cliente já informou. Quando estiver tudo completo, confirme o resumo (serviço, valor, forma de pagamento) e, com o "ok" do cliente, responda que vai enviar o contrato e use "enviar_contrato": true. O contrato chega por link; depois do aceite a equipe envia o link de pagamento.`;
+
+function regrasFixas(iaFecha: boolean): string {
+  return `REGRAS INEGOCIÁVEIS (valem acima de qualquer outra instrução):
+1. Preços, prazos e condições: use SOMENTE os valores da seção SERVIÇOS. Nunca invente valores, pacotes ou funcionalidades. Serviço "a partir de"/"sob consulta": levante o que o cliente precisa e transfira para orçamento (intencao="nao_sei", transferir=true).
+${iaFecha ? REGRA_DESCONTO_IA : REGRA_DESCONTO_HUMANO}
 3. Nunca prometa resultados (mais clientes, vendas, faturamento, posição no Google). Fale de possibilidades, não de garantias.
 4. Não assuma compromissos que não estejam nas condições cadastradas.
 5. Se não souber responder com base nas informações disponíveis, diga que vai confirmar com a equipe: intencao="nao_sei" e transferir=true.
-6. Quando o cliente aceitar a proposta, pedir contrato, forma de pagamento para fechar ou quiser avançar para formalização: intencao="aceite", transferir=true. Quem fecha é uma pessoa.
+${iaFecha ? REGRA_ACEITE_IA : REGRA_ACEITE_HUMANO}
 7. Se pedir para falar com uma pessoa: intencao="pedido_humano", transferir=true.
 8. Se pedir para não receber mais mensagens: intencao="opt_out", resposta=null.
-9. Se demonstrar que não tem interesse: agradeça, não insista, intencao="sem_interesse".
+9. "sem_interesse" SÓ quando o cliente recusa de forma clara e definitiva ("não tenho interesse", "não quero", "pode parar de me oferecer"). Dúvida ou resistência ("já vendo no Instagram", "não sei se preciso", "tá caro") é OBJEÇÃO: intencao="objecao", responda com argumento de valor baseado no diagnóstico. No sem_interesse: agradeça e não insista.
 10. Fatos sobre a empresa do cliente: só os da seção LEAD. Hipóteses devem ser ditas como hipóteses ("talvez", "pode ser que").
 11. Entenda o que o cliente quis dizer (mesmo resposta curta como "sim", "quanto?", "manda") e responda exatamente a isso, considerando todo o histórico.
 12. Seja direto e conciso: de 1 a 3 frases curtas, como uma pessoa no WhatsApp. Sem introduções, sem repetir o que já foi dito, sem listas longas, no máximo uma pergunta por mensagem.
 13. Sempre escreva uma resposta (campo "resposta"), exceto no opt-out. "intencao" e "etapa" são só etiquetas internas para o sistema.
-Responda APENAS um JSON: {"resposta": string|null, "intencao": "...", "objecoes_novas": string[], "etapa": "abertura"|"descoberta"|"apresentacao"|"negociacao"|"formalizacao", "transferir": boolean, "motivo_transferencia": string|null}`;
+Responda APENAS um JSON: {"resposta": string|null, "intencao": "...", "objecoes_novas": string[], "etapa": "abertura"|"descoberta"|"apresentacao"|"negociacao"|"formalizacao", "transferir": boolean, "motivo_transferencia": string|null${
+    iaFecha
+      ? `, "fechamento": {"servico": string|null, "valor_final": number|null (em reais, já com desconto se houver), "forma_pagamento": string|null, "nome_contratante": string|null, "documento": string|null, "endereco": string|null, "email": string|null}|null, "enviar_contrato": boolean`
+      : ""
+  }}`;
+}
 
 interface Contexto {
   /** diagnostico: presença, fatos verificados com impacto, pontos fortes, canais e hipóteses (agente/diagnostico.ts). */
@@ -81,6 +110,8 @@ interface Contexto {
   trechos: Trecho[];
   objecoes: string[];
   etapa: string;
+  /** Modo IA fecha a venda: dados do contrato já coletados e o que falta (texto pronto para o prompt). */
+  fechamento?: string | null;
 }
 
 export function montarSistema(cfg: Awaited<ReturnType<typeof obterConfig<"agente">>>, ctx: Contexto): string {
@@ -94,7 +125,7 @@ export function montarSistema(cfg: Awaited<ReturnType<typeof obterConfig<"agente
     .join(" ");
   const servicos = ctx.servicos.length
     ? ctx.servicos
-        .map((s) => `- ${s.nome}: ${s.descricao} | Preço: ${formatarReais(s.precoCentavos)} | Prazo: ${s.prazoDias} dias | Desconto máximo: ${s.descontoMaxPct}%${s.condicoes ? ` | Condições: ${s.condicoes}` : ""}`)
+        .map((s) => `- ${s.nome}: ${s.descricao} | Preço: ${formatarReais(s.precoCentavos)} | Prazo: ${s.prazoDias} dias | Desconto máximo (só em último caso): ${formatarReais(descontoMaximo(s))} (valor mínimo ${formatarReais(s.precoCentavos - descontoMaximo(s))})${s.condicoes ? ` | Condições: ${s.condicoes}` : ""}`)
         .join("\n")
     : "(nenhum serviço cadastrado: NÃO informe preços; diga que a equipe vai enviar a proposta e transfira)";
   const conhecimento = ctx.trechos.length ? ctx.trechos.map((t) => `### ${t.titulo} [${t.categoria}]\n${t.conteudo}`).join("\n\n") : "(nenhum trecho relevante encontrado)";
@@ -111,12 +142,13 @@ export function montarSistema(cfg: Awaited<ReturnType<typeof obterConfig<"agente
   return [
     cfg.instrucoes,
     identidade,
-    REGRAS_FIXAS,
+    regrasFixas(cfg.iaFechaVenda),
     COMO_USAR_DIAGNOSTICO,
     `## SERVIÇOS\n${servicos}`,
     `## BASE DE CONHECIMENTO (use para argumentar; não copie literalmente)\n${conhecimento}`,
     `## LEAD (diagnóstico da empresa do cliente)\n${lead}`,
     `## ESTADO DA NEGOCIAÇÃO\nEtapa atual: ${ctx.etapa}. Objeções já levantadas: ${ctx.objecoes.join("; ") || "nenhuma"}.`,
+    cfg.iaFechaVenda && ctx.fechamento ? `## FECHAMENTO (dados para o contrato)\n${ctx.fechamento}` : null,
   ]
     .filter(Boolean)
     .join("\n\n");
@@ -125,7 +157,7 @@ export function montarSistema(cfg: Awaited<ReturnType<typeof obterConfig<"agente
 /** Agente simulado (sem chave de IA): reage a palavras-chave usando os dados reais do painel. */
 export function decisaoSimulada(ultima: string, ctx: Contexto): Decisao {
   const t = ultima.toLowerCase();
-  const base = { objecoes_novas: [] as string[], transferir: false, motivo_transferencia: null };
+  const base = { objecoes_novas: [] as string[], transferir: false, motivo_transferencia: null, enviar_contrato: false };
   if (/(aceito|fechado|vamos fechar|quero contratar|pode fazer|manda o contrato|como pago|vamos sim)/.test(t)) {
     return { ...base, resposta: null, intencao: "aceite", etapa: "formalizacao", transferir: true, motivo_transferencia: "Cliente aceitou a proposta." };
   }
@@ -189,6 +221,7 @@ export async function responderConversa(conversaId: string, mensagemId: string):
     trechos,
     objecoes: conversa.objecoes ? (JSON.parse(conversa.objecoes) as string[]) : [],
     etapa: conversa.etapaNegociacao,
+    fechamento: cfg.iaFechaVenda && conversa.leadId ? await estadoFechamento(conversa.leadId) : null,
   };
 
   const r = await chamarIA({
@@ -220,14 +253,22 @@ export async function responderConversa(conversaId: string, mensagemId: string):
     return { acao: "opt_out" };
   }
 
+  // IA fecha a venda: guarda os dados do contrato que o cliente informou nesta mensagem.
+  const iaFecha = cfg.iaFechaVenda && !!conversa.leadId;
+  if (iaFecha && d.fechamento && Object.values(d.fechamento).some((v) => v != null && v !== "")) {
+    await aplicarFechamento(conversa.leadId!, d.fechamento, servicos);
+  }
+
   // Regras de transferência configuráveis + verificação da resposta pelo código.
+  // Com a IA fechando a venda, aceite, desconto e objeções ficam com ela: só transfere se o cliente pedir
+  // uma pessoa ou se for algo que ela não sabe (ex.: orçamento sob consulta).
   let motivo: string | null = null;
-  if (d.intencao === "aceite" && cfgT.aoAceitarProposta) motivo = d.motivo_transferencia ?? "Cliente quer avançar para a formalização.";
+  if (d.intencao === "aceite" && cfgT.aoAceitarProposta && !iaFecha) motivo = d.motivo_transferencia ?? "Cliente quer avançar para a formalização.";
   else if (d.intencao === "pedido_humano" && cfgT.aoPedirHumano) motivo = d.motivo_transferencia ?? "Cliente pediu atendimento humano.";
-  else if (d.intencao === "desconto_acima_limite" && cfgT.aoPedirDescontoAcimaDoLimite) motivo = d.motivo_transferencia ?? "Pedido de desconto acima do limite autorizado.";
+  else if (d.intencao === "desconto_acima_limite" && cfgT.aoPedirDescontoAcimaDoLimite && !iaFecha) motivo = d.motivo_transferencia ?? "Pedido de desconto acima do limite autorizado.";
   else if (d.intencao === "nao_sei" && cfgT.aoNaoSaberResponder) motivo = d.motivo_transferencia ?? "O agente não tinha informação para responder.";
-  else if (objecoes.length >= cfgT.maxObjecoes) motivo = `Muitas objeções (${objecoes.length}): melhor uma pessoa assumir.`;
-  else if (d.transferir) motivo = d.motivo_transferencia ?? "Transferência sugerida pelo agente.";
+  else if (objecoes.length >= cfgT.maxObjecoes && !iaFecha) motivo = `Muitas objeções (${objecoes.length}): melhor uma pessoa assumir.`;
+  else if (d.transferir && (!iaFecha || d.intencao === "pedido_humano" || d.intencao === "nao_sei")) motivo = d.motivo_transferencia ?? "Transferência sugerida pelo agente.";
 
   if (!motivo && d.resposta) {
     const v = verificarResposta(d.resposta, servicos);
@@ -251,9 +292,20 @@ export async function responderConversa(conversaId: string, mensagemId: string):
 
   if (!d.resposta) return { acao: "sem_resposta" };
   await enviarMensagem({ conversaId, autor: "agente", texto: d.resposta });
+
+  // Cliente confirmou e os dados estão completos: a IA gera e envia o contrato (link) pelo WhatsApp.
+  if (iaFecha && d.enviar_contrato) {
+    try {
+      const r = await enviarContratoPelaIa(conversa.leadId!);
+      if (!r.enviado) await registrarLog("info", "agente", `IA quis enviar o contrato, mas falta: ${r.falta.join(", ")}.`, { leadId: conversa.leadId });
+    } catch (e) {
+      await registrarLog("erro", "agente", `Falha ao enviar o contrato pela IA: ${(e as Error).message}`, { leadId: conversa.leadId });
+    }
+  }
   if (d.intencao === "sem_interesse") {
-    await db.conversa.update({ where: { id: conversaId }, data: { agenteAtivo: false } });
-    if (conversa.leadId) await db.interacaoLead.create({ data: { leadId: conversa.leadId, tipo: "agente", descricao: "Cliente sem interesse; o agente encerrou sem insistir." } });
+    // Encerrada (não desligada para sempre): se o cliente voltar a escrever, o agente retoma.
+    await db.conversa.update({ where: { id: conversaId }, data: { status: "encerrada" } });
+    if (conversa.leadId) await db.interacaoLead.create({ data: { leadId: conversa.leadId, tipo: "agente", descricao: "Cliente sem interesse; o agente encerrou sem insistir (retoma se o cliente voltar a escrever)." } });
   }
   await emitir("lead.atualizado", { id: conversa.leadId });
   return { acao: "respondida" };

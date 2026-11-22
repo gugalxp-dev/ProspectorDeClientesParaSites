@@ -6,7 +6,13 @@ export interface ServicoRegra {
   nome: string;
   precoCentavos: number;
   descontoMaxPct: number;
+  descontoMaxCentavos?: number;
   condicoes: string | null;
+}
+
+/** Maior desconto permitido em centavos: o maior entre o valor fixo e o percentual. */
+export function descontoMaximo(s: ServicoRegra): number {
+  return Math.min(s.precoCentavos, Math.max(s.descontoMaxCentavos ?? 0, Math.floor((s.precoCentavos * s.descontoMaxPct) / 100)));
 }
 
 export function centavosDe(valor: string): number | null {
@@ -25,7 +31,7 @@ export function valoresMencionados(texto: string): number[] {
 export function valorPermitido(centavos: number, servicos: ServicoRegra[]): boolean {
   for (const s of servicos) {
     if (centavos === s.precoCentavos) return true;
-    const minimo = Math.floor(s.precoCentavos * (1 - s.descontoMaxPct / 100));
+    const minimo = s.precoCentavos - descontoMaximo(s);
     if (centavos >= minimo && centavos <= s.precoCentavos) return true;
     for (let n = 2; n <= 12; n++) if (Math.abs(centavos - Math.round(s.precoCentavos / n)) <= 1) return true;
     if (s.condicoes && valoresMencionados(s.condicoes).includes(centavos)) return true;

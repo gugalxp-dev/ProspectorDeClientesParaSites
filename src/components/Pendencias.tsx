@@ -117,6 +117,35 @@ export function AprovarContatos({ leads, etapaPerdidoId }: { leads: LeadAprovar[
   );
 }
 
+/** Você mandou o link de pagamento: tira o contrato da fila de cobrança. */
+export function MarcarCobrado({ contratoId }: { contratoId: string }) {
+  const router = useRouter();
+  const [ocupado, setOcupado] = useState(false);
+  const [erro, setErro] = useState<string | null>(null);
+  return (
+    <span className="flex flex-col items-end gap-1">
+      <button
+        className="botao"
+        disabled={ocupado}
+        onClick={async () => {
+          setOcupado(true);
+          setErro(null);
+          try {
+            await chamarApi(`/api/contratos/${contratoId}/cobrado`, { corpo: {} });
+            router.refresh();
+          } catch (e) {
+            setErro((e as Error).message);
+            setOcupado(false);
+          }
+        }}
+      >
+        <Check className="size-4" /> {ocupado ? "Salvando..." : "Link de pagamento enviado"}
+      </button>
+      {erro && <span className="text-xs text-rose-700">{erro}</span>}
+    </span>
+  );
+}
+
 const horaCurta = (iso: string) => new Date(iso).toLocaleString("pt-BR", { weekday: "short", hour: "2-digit", minute: "2-digit" });
 
 /** Primeiros contatos na fila, com o horário de envio e a opção de cancelar. */

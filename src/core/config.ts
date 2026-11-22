@@ -46,6 +46,8 @@ export const esquemaAgente = z.object({
   ativo: z.boolean().default(true),
   nomeAgente: z.string().max(60).default(""),
   nomeEmpresa: z.string().max(120).default(""),
+  /** A IA negocia, coleta os dados e envia o contrato; a pessoa só entra na cobrança (link de pagamento). */
+  iaFechaVenda: z.boolean().default(true),
   /** Site/portfólio da sua empresa: o agente envia quando o cliente quiser ver trabalhos ou mais detalhes. */
   siteEmpresa: z.string().max(300).default(""),
   /** Instruções de comportamento (o "jeito" do agente). Regras de segurança fixas ficam no código do agente. */

@@ -19,7 +19,7 @@ const AGUARDANDO_APROVACAO: Prisma.LeadWhereInput = {
 
 const EM_INTERVENCAO: Prisma.LeadWhereInput = { etapa: { chave: "intervencao_humana" } };
 /** Contrato em andamento ou aceito: não precisa gerar outro. */
-const COM_CONTRATO: Prisma.LeadWhereInput = { contratos: { some: { status: { in: ["pronto", "enviado", "visualizado", "aceito"] } } } };
+const COM_CONTRATO: Prisma.LeadWhereInput = { contratos: { some: { status: { in: ["pronto", "enviado", "visualizado", "aceito", "cobrado"] } } } };
 
 /**
  * Transferências separadas em duas filas: o cliente aceitou (gerar contrato) e as demais (assumir conversa).
@@ -59,13 +59,14 @@ async function alertas(): Promise<Alerta[]> {
 export async function contarPendencias() {
   const f = await filtrosIntervencao();
   const naFila = [...(await agendados()).keys()];
-  const [aprovar, contratos, intervencao, al] = await Promise.all([
+  const [aprovar, contratos, intervencao, al, cobrar] = await Promise.all([
     db.lead.count({ where: { AND: [AGUARDANDO_APROVACAO, { id: { notIn: naFila } }] } }),
     db.lead.count({ where: f.gerarContrato }),
     db.lead.count({ where: f.outras }),
     alertas(),
+    db.contrato.count({ where: { status: "aceito" } }),
   ]);
-  return { aprovar, contratos, intervencao, alertas: al.length, total: aprovar + contratos + intervencao + al.length };
+  return { aprovar, contratos, intervencao, cobrar, alertas: al.length, total: aprovar + contratos + intervencao + cobrar + al.length };
 }
 
 export async function listarPendencias() {
@@ -81,5 +82,11 @@ export async function listarPendencias() {
     db.lead.findMany({ where: { id: { in: [...fila.keys()] } }, select: { id: true, nome: true, cidade: true, segmento: true } }),
   ]);
   const agendadosLista = naFila.map((l) => ({ ...l, quando: fila.get(l.id)! })).sort((a, b) => a.quando.getTime() - b.quando.getTime());
-  return { aprovar, contratos, intervencao, alertas: al, etapaPerdidoId: perdido?.id ?? null, agendados: agendadosLista };
+  // Contratos aceitos esperando o link de pagamento (o resumo da venda vem do motivo registrado no aceite).
+  const cobrar = await db.contrato.findMany({
+    where: { status: "aceito" },
+    orderBy: { aceitoEm: "asc" },
+    select: { id: true, numero: true, aceitoEm: true, lead: { select: { id: true, nome: true, motivoTransferencia: true } } },
+  });
+  return { aprovar, contratos, intervencao, cobrar, alertas: al, etapaPerdidoId: perdido?.id ?? null, agendados: agendadosLista };
 }

@@ -48,7 +48,8 @@ const STATUS: Record<string, [string, string]> = {
   pronto: ["Pronto (não enviado)", "bg-sky-100 text-sky-800"],
   enviado: ["Enviado", "bg-violet-100 text-violet-800"],
   visualizado: ["Cliente abriu", "bg-amber-100 text-amber-800"],
-  aceito: ["Aceito", "bg-emerald-100 text-emerald-800"],
+  aceito: ["Aceito: enviar link de pagamento", "bg-emerald-100 text-emerald-800"],
+  cobrado: ["Link de pagamento enviado", "bg-teal-100 text-teal-800"],
   cancelado: ["Cancelado", "bg-zinc-200 text-zinc-600"],
 };
 
@@ -136,10 +137,10 @@ export function ContratoLead(p: { leadId: string; contratos: ContratoResumo[]; r
             <div className="flex flex-wrap gap-2 pt-1">
               <a href={c.link} target="_blank" rel="noopener noreferrer" className="botao-sec"><Eye className="size-4" /> Abrir página do cliente</a>
               <button className="botao-sec" onClick={() => navigator.clipboard.writeText(c.link!).then(() => setAviso("Link copiado."))}><Copy className="size-4" /> Copiar link</button>
-              {c.status !== "aceito" && p.temWhatsapp && (
+              {!["aceito", "cobrado"].includes(c.status) && p.temWhatsapp && (
                 <button className="botao-sec" disabled={ocupado} onClick={() => acao(c.id, "enviar", "Link reenviado pelo WhatsApp.")}><Send className="size-4" /> {c.enviadoEm ? "Reenviar" : "Enviar"} pelo WhatsApp</button>
               )}
-              {c.status !== "aceito" && (
+              {!["aceito", "cobrado"].includes(c.status) && (
                 <button className="botao-perigo" disabled={ocupado} onClick={() => acao(c.id, "cancelar", "Contrato cancelado. Gere um novo se precisar mudar algo.")}><X className="size-4" /> Cancelar</button>
               )}
             </div>

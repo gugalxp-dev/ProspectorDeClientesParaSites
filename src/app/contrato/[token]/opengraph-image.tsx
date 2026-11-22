@@ -15,7 +15,7 @@ const APAGADO = "#9a9a92";
 
 export default async function Imagem({ params }: { params: Promise<{ token: string }> }) {
   const p = await dadosContratoPublico((await params).token);
-  const aceito = p?.c.status === "aceito";
+  const aceito = ["aceito", "cobrado"].includes(p?.c.status ?? "");
   const cancelado = p?.c.status === "cancelado";
 
   return new ImageResponse(

@@ -172,6 +172,7 @@ describe("agente comercial", () => {
   });
 
   it("aceite transfere para humano: para a automação, registra motivo, notifica e avisa o cliente", async () => {
+    await salvarConfig("agente", { iaFechaVenda: false }); // modo antigo: quem fecha é a pessoa
     const lead = await criarLead();
     await clienteEscreve("Oi");
     await clienteEscreve("Fechado, quero contratar!");

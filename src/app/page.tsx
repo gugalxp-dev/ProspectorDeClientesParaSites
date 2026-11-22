@@ -38,7 +38,7 @@ export default async function Dashboard() {
           <Link href="/admin/integracoes" className="underline">Configurar integrações</Link>
         </div>
       )}
-      <IndicadoresPendencias aprovar={pend.aprovar} contratos={pend.contratos} intervencao={pend.intervencao} alertas={pend.alertas} />
+      <IndicadoresPendencias aprovar={pend.aprovar} contratos={pend.contratos} intervencao={pend.intervencao} alertas={pend.alertas} cobrar={pend.cobrar} />
       <PainelMetricas inicial={m} />
 
       <div className="grid gap-6 lg:grid-cols-2">

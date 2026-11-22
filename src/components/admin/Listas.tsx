@@ -39,12 +39,13 @@ export function ListaServicos({ itens }: { itens: R[] }) {
     <Crud
       url="/api/admin/servicos"
       itens={itens}
-      novoPadrao={{ ativo: true, descontoMaxPct: 0, ordem: 0 }}
+      novoPadrao={{ ativo: true, descontoMaxPct: 0, descontoMaxCentavos: 0, ordem: 0 }}
       campos={[
         { nome: "nome", rotulo: "Nome do serviço", tipo: "texto", obrigatorio: true },
         { nome: "precoCentavos", rotulo: "Preço (R$)", tipo: "reais", obrigatorio: true, ajuda: "Ex.: 1.500,00" },
         { nome: "prazoDias", rotulo: "Prazo de entrega (dias)", tipo: "numero", obrigatorio: true },
-        { nome: "descontoMaxPct", rotulo: "Desconto máximo que o agente pode conceder (%)", tipo: "numero", obrigatorio: true },
+        { nome: "descontoMaxCentavos", rotulo: "Desconto máximo que o agente pode conceder (R$)", tipo: "reais", ajuda: "Ex.: 100,00. Só em último caso, depois de o cliente insistir." },
+        { nome: "descontoMaxPct", rotulo: "Ou desconto máximo em % (vale o maior dos dois)", tipo: "numero", obrigatorio: true, ajuda: "Deixe 0 para usar só o valor em reais." },
         { nome: "descricao", rotulo: "O que está incluído", tipo: "area", obrigatorio: true },
         { nome: "condicoes", rotulo: "Condições (pagamento, parcelamento, o que não está incluso)", tipo: "area", ajuda: "Valores escritos aqui (ex.: “entrada de R$ 500,00”) também podem ser citados pelo agente." },
         { nome: "ordem", rotulo: "Ordem de exibição", tipo: "numero" },
@@ -55,7 +56,7 @@ export function ListaServicos({ itens }: { itens: R[] }) {
           <div className="flex flex-wrap items-center gap-2">
             <strong>{String(r.nome)}</strong>
             <span>{reais(r.precoCentavos)}</span>
-            <span className="text-xs text-slate-500">{String(r.prazoDias)} dias · desconto até {String(r.descontoMaxPct)}%</span>
+            <span className="text-xs text-slate-500">{String(r.prazoDias)} dias · desconto até {Number(r.descontoMaxCentavos) > 0 ? reais(r.descontoMaxCentavos) : `${String(r.descontoMaxPct)}%`}</span>
             {!r.ativo && <span className="selo bg-zinc-100 text-zinc-500">inativo</span>}
           </div>
           <p className="mt-1 line-clamp-2 text-xs text-slate-600">{String(r.descricao)}</p>

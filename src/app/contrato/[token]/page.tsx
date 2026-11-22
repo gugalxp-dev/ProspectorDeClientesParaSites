@@ -19,11 +19,11 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   if (!p) return { title: "Contrato não encontrado", robots: { index: false, follow: false } };
   const h = await headers();
   const base = env().APP_URL ?? `${h.get("x-forwarded-proto") ?? "http"}://${h.get("host") ?? "localhost:3000"}`;
-  const titulo = p.c.status === "aceito" ? `Contrato aceito · ${p.marca}` : `Contrato nº ${p.c.numero} · ${p.marca}`;
+  const titulo = ["aceito", "cobrado"].includes(p.c.status) ? `Contrato aceito · ${p.marca}` : `Contrato nº ${p.c.numero} · ${p.marca}`;
   const descricao =
     p.c.status === "cancelado"
       ? "Este contrato foi cancelado."
-      : p.c.status === "aceito"
+      : ["aceito", "cobrado"].includes(p.c.status)
         ? `${p.dados.servico} para ${p.dados.contratanteNome}. Aceito eletronicamente.`
         : `${p.dados.servico} para ${p.dados.contratanteNome}: ${p.valor}, entrega em até ${p.dados.prazoDias} dias. Toque para ler e confirmar o aceite online.`;
   return {
@@ -45,7 +45,8 @@ export default async function ContratoPublico({ params }: Props) {
   // A prévia do link (robô do WhatsApp) não conta como "cliente abriu".
   const agente = (await headers()).get("user-agent") ?? "";
   if (c.status !== "cancelado" && !ROBO_PREVIA.test(agente)) await marcarVisualizado(c.id);
-  const pendente = c.status !== "aceito" && c.status !== "cancelado";
+  const aceito = ["aceito", "cobrado"].includes(c.status);
+  const pendente = !aceito && c.status !== "cancelado";
 
   return (
     <div className="mx-auto max-w-[820px] space-y-5 py-2">
@@ -85,7 +86,7 @@ export default async function ContratoPublico({ params }: Props) {
       <FolhaContrato texto={c.conteudo!} cabecalho={{ logo: cfg.logo, empresa: marca, numero: c.numero }} />
 
       <div id="aceite" className="scroll-mt-6">
-        {c.status === "aceito" ? (
+        {aceito ? (
           <div className="flex items-start gap-3 rounded-lg border border-emerald-300 bg-emerald-50 p-4 text-sm text-emerald-900">
             <ShieldCheck className="size-6 shrink-0" />
             <div className="space-y-1">
