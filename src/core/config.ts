@@ -65,7 +65,7 @@ export const esquemaAgente = z.object({
       ].join("\n"),
     ),
   maxSaidasSemResposta: z.number().int().min(1).max(5).default(2),
-  maxMensagensPorConversaDia: z.number().int().min(1).max(50).default(12),
+  maxMensagensPorConversaDia: z.number().int().min(1).max(200).default(40),
   mensagemTransferencia: z
     .string()
     .max(500)

@@ -33,6 +33,8 @@ export function valorPermitido(centavos: number, servicos: ServicoRegra[]): bool
     if (centavos === s.precoCentavos) return true;
     const minimo = s.precoCentavos - descontoMaximo(s);
     if (centavos >= minimo && centavos <= s.precoCentavos) return true;
+    // O próprio valor do desconto ("R$ 50,00 de desconto"), até o máximo permitido.
+    if (centavos > 0 && centavos <= descontoMaximo(s)) return true;
     for (let n = 2; n <= 12; n++) if (Math.abs(centavos - Math.round(s.precoCentavos / n)) <= 1) return true;
     if (s.condicoes && valoresMencionados(s.condicoes).includes(centavos)) return true;
   }
@@ -53,7 +55,7 @@ export interface Verificacao {
 
 export function verificarResposta(texto: string, servicos: ServicoRegra[]): Verificacao {
   if (!texto.trim()) return { ok: false, motivo: "Resposta vazia." };
-  if (texto.length > 1200) return { ok: false, motivo: "Resposta longa demais para WhatsApp." };
+  if (texto.length > 2500) return { ok: false, motivo: "Resposta longa demais para WhatsApp." };
   for (const v of valoresMencionados(texto)) {
     if (!valorPermitido(v, servicos)) {
       return { ok: false, motivo: `Valor R$ ${(v / 100).toFixed(2).replace(".", ",")} não corresponde a nenhum preço ou desconto autorizado.` };
@@ -63,6 +65,19 @@ export function verificarResposta(texto: string, servicos: ServicoRegra[]): Veri
     if (re.test(texto)) return { ok: false, motivo: "A resposta prometia resultado garantido." };
   }
   return { ok: true };
+}
+
+/**
+ * Markdown -> formatação do WhatsApp. O modelo às vezes escreve **negrito**, __negrito__ ou "# Título",
+ * que no WhatsApp aparecem com os símbolos crus. Lá o negrito é *um asterisco*.
+ */
+export function paraWhatsApp(texto: string): string {
+  return texto
+    .replace(/\*\*([^*\n]+)\*\*/g, "*$1*")
+    .replace(/__([^_\n]+)__/g, "*$1*")
+    .replace(/^#{1,6}\s+(.+)$/gm, "*$1*")
+    .replace(/[ \t]+$/gm, "")
+    .trim();
 }
 
 export function formatarReais(centavos: number): string {

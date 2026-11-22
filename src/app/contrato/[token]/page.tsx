@@ -87,12 +87,12 @@ export default async function ContratoPublico({ params }: Props) {
 
       <div id="aceite" className="scroll-mt-6">
         {aceito ? (
-          <div className="flex items-start gap-3 rounded-lg border border-emerald-300 bg-emerald-50 p-4 text-sm text-emerald-900">
+          <div className="flex items-start gap-3 rounded-lg bg-[#059669] p-4 text-sm text-[#ffffff] shadow-lg">
             <ShieldCheck className="size-6 shrink-0" />
             <div className="space-y-1">
               <strong>Contrato aceito eletronicamente</strong>
               <div>Por {c.aceiteNome} ({c.aceiteDocumento}) em {dataHora(c.aceitoEm)} · IP {c.aceiteIp}</div>
-              <div className="break-all text-xs text-emerald-800/80">Código de integridade do texto: {c.conteudoHash}</div>
+              <div className="break-all text-xs text-[#ffffff]/80">Código de integridade do texto: {c.conteudoHash}</div>
               <div className="pt-1"><BotaoImprimir /></div>
             </div>
           </div>

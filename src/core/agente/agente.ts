@@ -13,7 +13,7 @@ import { dentroDaJanela, enviarMensagem, EnvioBloqueado, registrarOptOut, transf
 import { buscarConhecimento, type Trecho } from "./conhecimento";
 import { COMO_USAR_DIAGNOSTICO, diagnosticar, diagnosticoParaAgente } from "./diagnostico";
 import { aplicarFechamento, enviarContratoPelaIa, estadoFechamento } from "./fechamento";
-import { descontoMaximo, formatarReais, verificarResposta, type ServicoRegra } from "./regras";
+import { descontoMaximo, formatarReais, paraWhatsApp, verificarResposta, type ServicoRegra } from "./regras";
 
 const INTENCOES = ["duvida", "interesse", "objecao", "aceite", "pedido_humano", "desconto_acima_limite", "sem_interesse", "opt_out", "nao_sei", "outro"] as const;
 const ETAPAS = ["abertura", "descoberta", "apresentacao", "negociacao", "formalizacao"] as const;
@@ -47,7 +47,7 @@ const normalizarValor = (v: unknown) =>
  * uma palavra fora da lista não pode deixar o cliente sem resposta. Valor desconhecido vira "outro".
  */
 export const esquemaDecisao = z.object({
-  resposta: z.string().max(1500).nullable(),
+  resposta: z.string().max(3500).nullable(),
   intencao: z.preprocess((v) => {
     const n = normalizarValor(v);
     return typeof n === "string" ? (SINONIMOS[n] ?? n) : n;
@@ -78,8 +78,12 @@ const REGRA_DESCONTO_HUMANO = `2. Desconto: só até o limite informado em cada 
 const REGRA_ACEITE_HUMANO = `6. Quando o cliente aceitar a proposta, pedir contrato, forma de pagamento para fechar ou quiser avançar para formalização: intencao="aceite", transferir=true. Quem fecha é uma pessoa.`;
 
 /** Modo "IA fecha a venda": a IA negocia, coleta os dados e envia o contrato; a pessoa só entra na cobrança. */
-const REGRA_DESCONTO_IA = `2. Negociação: VALORIZE antes de qualquer desconto (o que está incluído, o diagnóstico da empresa, o que ela ganha). Só fale em desconto se o cliente pedir ou resistir ao preço pelo menos 2 vezes; comece com cerca de metade do desconto máximo e só chegue ao máximo em último caso, para fechar agora. NUNCA abaixo do "valor mínimo" do serviço. Se pedir mais que isso, mantenha o valor com educação e reforce o valor (intencao="desconto_acima_limite", sem transferir).`;
-const REGRA_ACEITE_IA = `6. Quando o cliente aceitar (intencao="aceite"), VOCÊ fecha, sem transferir: peça UM dado por vez do que falta na seção FECHAMENTO (nome ou razão social, CPF/CNPJ, endereço, e-mail opcional) e a forma de pagamento entre as das condições do serviço. Preencha "fechamento" com tudo que o cliente já informou. Quando estiver tudo completo, confirme o resumo (serviço, valor, forma de pagamento) e, com o "ok" do cliente, responda que vai enviar o contrato e use "enviar_contrato": true. O contrato chega por link; depois do aceite a equipe envia o link de pagamento.`;
+const REGRA_DESCONTO_IA = `2. Negociação (siga em ordem):
+   a) Na PRIMEIRA vez que o cliente pedir desconto ou achar caro: NÃO dê desconto, mas também NÃO diga que não existe desconto. Diga que o valor já é bem competitivo pelo que inclui, lembre o que ele ganha (conteúdo, layout, desenvolvimento, experiência do usuário, domínio e hospedagem de brinde...) ligado ao negócio dele, e pergunte o que mais pesa na decisão.
+   b) Se insistir de novo: ofereça cerca de METADE do desconto máximo, condicionado a fechar agora.
+   c) Só em último caso, se ainda insistir: o desconto máximo, como condição final.
+   NUNCA diga qual é o desconto máximo nem use a palavra "até" com desconto; fale só do valor que está oferecendo naquele momento. NUNCA abaixo do "valor mínimo" do serviço. Se pedir mais, mantenha com educação e reforce o valor (intencao="desconto_acima_limite", sem transferir).`;
+const REGRA_ACEITE_IA = `6. NÃO peça dados do contrato (nome, CPF/CNPJ, endereço, pagamento) antes de o cliente dizer claramente que quer fechar; até lá, apresente o valor, tire dúvidas e pergunte se faz sentido seguir. Quando o cliente aceitar (intencao="aceite"), VOCÊ fecha, sem transferir: peça UM dado por vez do que falta na seção FECHAMENTO (nome ou razão social, CPF/CNPJ, endereço, e-mail opcional) e a forma de pagamento entre as das condições do serviço. Preencha "fechamento" com tudo que o cliente já informou. Quando estiver tudo completo, confirme o resumo (serviço, valor, forma de pagamento) e, com o "ok" do cliente, responda que vai enviar o contrato e use "enviar_contrato": true. O contrato chega por link; depois do aceite a equipe envia o link de pagamento.`;
 
 function regrasFixas(iaFecha: boolean): string {
   return `REGRAS INEGOCIÁVEIS (valem acima de qualquer outra instrução):
@@ -95,6 +99,13 @@ ${iaFecha ? REGRA_ACEITE_IA : REGRA_ACEITE_HUMANO}
 10. Fatos sobre a empresa do cliente: só os da seção LEAD. Hipóteses devem ser ditas como hipóteses ("talvez", "pode ser que").
 11. Entenda o que o cliente quis dizer (mesmo resposta curta como "sim", "quanto?", "manda") e responda exatamente a isso, considerando todo o histórico.
 12. Seja direto e conciso: de 1 a 3 frases curtas, como uma pessoa no WhatsApp. Sem introduções, sem repetir o que já foi dito, sem listas longas, no máximo uma pergunta por mensagem.
+   EXCEÇÃO: se o cliente pedir para explicar como funciona, o que está incluído, o que ganha ou mais detalhes, responda COMPLETO e ORGANIZADO, usando SERVIÇOS e BASE DE CONHECIMENTO, neste formato:
+   - 1 frase de abertura;
+   - linha em branco + "*O que você ganha:*" e uma lista com "•", um item por linha, cada item com o nome em *negrito* e o benefício para o negócio dele (conteúdo do site, layout e desenvolvimento pensados no negócio, experiência do usuário, infraestrutura e hospedagem, domínio e hospedagem de brinde, SEO, segurança...);
+   - se pedir como funciona: linha em branco + "*Como funciona:*" e as etapas numeradas (1., 2., 3....), uma por linha;
+   - linha em branco + preço e prazo em *negrito*;
+   - linha em branco + uma pergunta simples para seguir.
+   Formatação do WhatsApp: negrito com *um asterisco*, listas com "•" ou "1.", linha em branco separando os blocos. Nunca use ** nem # (aparecem crus no WhatsApp).
 13. Sempre escreva uma resposta (campo "resposta"), exceto no opt-out. "intencao" e "etapa" são só etiquetas internas para o sistema.
 Responda APENAS um JSON: {"resposta": string|null, "intencao": "...", "objecoes_novas": string[], "etapa": "abertura"|"descoberta"|"apresentacao"|"negociacao"|"formalizacao", "transferir": boolean, "motivo_transferencia": string|null${
     iaFecha
@@ -224,22 +235,27 @@ export async function responderConversa(conversaId: string, mensagemId: string):
     fechamento: cfg.iaFechaVenda && conversa.leadId ? await estadoFechamento(conversa.leadId) : null,
   };
 
-  const r = await chamarIA({
-    operacao: "agente",
-    sistema: montarSistema(cfg, ctx),
-    mensagens: historico.map((m) => ({ papel: m.direcao === "entrada" ? ("user" as const) : ("assistant" as const), conteudo: m.conteudo })),
-    json: true,
-    refs: { leadId: conversa.leadId, conversaId },
-    respostaMock: (_p: PedidoIA) => JSON.stringify(decisaoSimulada(ultima.conteudo, ctx)),
-  });
-  let d: Decisao;
-  try {
-    d = esquemaDecisao.parse(lerJsonIA(r.texto));
-  } catch (e) {
-    // Guarda o que a IA devolveu para dar para entender o problema depois.
-    await registrarLog("erro", "agente", `Resposta da IA ilegível: ${r.texto.slice(0, 600)}`, { leadId: conversa.leadId });
-    throw e;
+  /** Pede a decisão à IA. `nota`: aviso extra (ex.: a resposta anterior foi bloqueada e por quê). */
+  async function decidir(nota?: string): Promise<Decisao> {
+    const r = await chamarIA({
+      operacao: "agente",
+      sistema: montarSistema(cfg, ctx) + (nota ? `\n\n${nota}` : ""),
+      mensagens: historico.map((m) => ({ papel: m.direcao === "entrada" ? ("user" as const) : ("assistant" as const), conteudo: m.conteudo })),
+      json: true,
+      refs: { leadId: conversa!.leadId, conversaId },
+      respostaMock: (_p: PedidoIA) => JSON.stringify(decisaoSimulada(ultima.conteudo, ctx)),
+    });
+    try {
+      const dec = esquemaDecisao.parse(lerJsonIA(r.texto));
+      if (dec.resposta) dec.resposta = paraWhatsApp(dec.resposta); // **negrito** -> *negrito* (formato do WhatsApp)
+      return dec;
+    } catch (e) {
+      // Guarda o que a IA devolveu para dar para entender o problema depois.
+      await registrarLog("erro", "agente", `Resposta da IA ilegível: ${r.texto.slice(0, 600)}`, { leadId: conversa!.leadId });
+      throw e;
+    }
   }
+  let d = await decidir();
   const objecoes = [...ctx.objecoes, ...d.objecoes_novas].slice(-20);
   await db.conversa.update({ where: { id: conversaId }, data: { etapaNegociacao: d.etapa, objecoes: JSON.stringify(objecoes) } });
 
@@ -266,16 +282,28 @@ export async function responderConversa(conversaId: string, mensagemId: string):
   if (d.intencao === "aceite" && cfgT.aoAceitarProposta && !iaFecha) motivo = d.motivo_transferencia ?? "Cliente quer avançar para a formalização.";
   else if (d.intencao === "pedido_humano" && cfgT.aoPedirHumano) motivo = d.motivo_transferencia ?? "Cliente pediu atendimento humano.";
   else if (d.intencao === "desconto_acima_limite" && cfgT.aoPedirDescontoAcimaDoLimite && !iaFecha) motivo = d.motivo_transferencia ?? "Pedido de desconto acima do limite autorizado.";
-  else if (d.intencao === "nao_sei" && cfgT.aoNaoSaberResponder) motivo = d.motivo_transferencia ?? "O agente não tinha informação para responder.";
+  // "nao_sei" só transfere se a IA pediu (transferir=true): a etiqueta sozinha não é confiável (ela marca
+  // "nao_sei" até quando responde normalmente) e transferia conversas que estavam indo bem.
+  else if (d.intencao === "nao_sei" && cfgT.aoNaoSaberResponder && d.transferir) motivo = d.motivo_transferencia ?? "O agente não tinha informação para responder.";
   else if (objecoes.length >= cfgT.maxObjecoes && !iaFecha) motivo = `Muitas objeções (${objecoes.length}): melhor uma pessoa assumir.`;
   else if (d.transferir && (!iaFecha || d.intencao === "pedido_humano" || d.intencao === "nao_sei")) motivo = d.motivo_transferencia ?? "Transferência sugerida pelo agente.";
 
   if (!motivo && d.resposta) {
-    const v = verificarResposta(d.resposta, servicos);
+    let v = verificarResposta(d.resposta, servicos);
     if (!v.ok) {
-      motivo = `Resposta do agente bloqueada pela verificação: ${v.motivo}`;
+      // Bloqueada: registra e dá UMA nova chance à IA, explicando o motivo. Só transfere se errar de novo.
       await db.mensagem.create({ data: { conversaId, direcao: "saida", autor: "agente", conteudo: d.resposta, status: "bloqueada", erro: v.motivo } });
-      await registrarLog("aviso", "agente", motivo, { leadId: conversa.leadId });
+      await registrarLog("aviso", "agente", `Resposta bloqueada (vai tentar de novo): ${v.motivo}`, { leadId: conversa.leadId });
+      const nova = await decidir(
+        `ATENÇÃO: sua resposta anterior foi BLOQUEADA pela verificação: ${v.motivo} Reescreva respeitando as REGRAS (só preços e descontos permitidos, sem prometer resultados). Mantenha o mesmo objetivo da resposta.`,
+      );
+      v = nova.resposta ? verificarResposta(nova.resposta, servicos) : { ok: false, motivo: "Resposta vazia." };
+      if (v.ok) d = { ...nova, fechamento: d.fechamento ?? nova.fechamento };
+      else {
+        motivo = `Resposta do agente bloqueada pela verificação: ${v.motivo}`;
+        if (nova.resposta) await db.mensagem.create({ data: { conversaId, direcao: "saida", autor: "agente", conteudo: nova.resposta, status: "bloqueada", erro: v.motivo } });
+        await registrarLog("aviso", "agente", motivo, { leadId: conversa.leadId });
+      }
     }
   }
 

@@ -83,4 +83,22 @@ describe("IA fecha a venda", () => {
     if (r) expect(JSON.parse(r.dados).valorCentavos).toBe(75000);
     expect(await db.contrato.count({ where: { status: { not: "rascunho" } } })).toBe(0);
   });
+
+  it("resposta bloqueada ganha uma nova chance antes de transferir; 'nao_sei' sem transferir não transfere", async () => {
+    respostas = [
+      { resposta: "Faço por R$ 300,00!", intencao: "objecao", etapa: "negociacao" }, // abaixo do mínimo: bloqueada
+      { resposta: "Consigo R$ 50,00 de desconto: fica R$ 700,00 se fecharmos hoje.", intencao: "objecao", etapa: "negociacao" },
+      { resposta: "Claro! Te explico tudo em detalhes.", intencao: "nao_sei", etapa: "apresentacao", transferir: false },
+    ];
+    await cliente("tem desconto?");
+    let conversa = await db.conversa.findFirstOrThrow();
+    expect(conversa.status).toBe("ativa");
+    expect(await db.mensagem.count({ where: { status: "bloqueada" } })).toBe(1);
+    expect(await db.mensagem.count({ where: { autor: "agente", conteudo: { contains: "R$ 50,00 de desconto" } } })).toBe(1);
+
+    await cliente("me explica melhor");
+    conversa = await db.conversa.findFirstOrThrow();
+    expect(conversa.status).toBe("ativa"); // etiqueta "nao_sei" sozinha não transfere
+    expect(await db.mensagem.count({ where: { autor: "agente", conteudo: { contains: "Te explico tudo" } } })).toBe(1);
+  });
 });

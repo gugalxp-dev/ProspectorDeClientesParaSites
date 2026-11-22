@@ -12,7 +12,7 @@ export function AceiteContrato({ token, nomeSugerido }: { token: string; nomeSug
 
   if (aceito) {
     return (
-      <div className="flex items-center gap-3 rounded-lg border border-emerald-300 bg-emerald-50 p-4 text-emerald-900">
+      <div className="flex items-center gap-3 rounded-lg bg-[#059669] p-4 text-[#ffffff] shadow-lg">
         <CheckCircle2 className="size-6 shrink-0" />
         <div>
           <strong>Contrato aceito!</strong> Obrigado. Em breve entraremos em contato para os próximos passos.

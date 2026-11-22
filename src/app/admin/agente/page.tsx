@@ -34,7 +34,7 @@ export default async function AdminAgente() {
         titulo="Limites e mensagens"
         campos={[
           { caminho: "maxSaidasSemResposta", rotulo: "Máx. mensagens seguidas sem resposta do cliente", tipo: "numero", min: 1, max: 5, ajuda: "Evita insistência." },
-          { caminho: "maxMensagensPorConversaDia", rotulo: "Máx. mensagens do agente por conversa/dia", tipo: "numero", min: 1, max: 50 },
+          { caminho: "maxMensagensPorConversaDia", rotulo: "Máx. mensagens do agente por conversa/dia", tipo: "numero", min: 1, max: 200 },
           { caminho: "templatePrimeiroContato", rotulo: "Nome do template aprovado para o primeiro contato", tipo: "texto", ajuda: "Exatamente como aprovado no WhatsApp Manager. Obrigatório no modo real." },
           { caminho: "idiomaTemplate", rotulo: "Idioma do template", tipo: "texto", ajuda: "Ex.: pt_BR" },
           { caminho: "mensagemPrimeiroContato", rotulo: "Primeiro contato no modo Baileys (texto)", tipo: "area", ajuda: "Usado só com WHATSAPP_MODO=baileys. Aceita {nome}, {agente}, {empresa} e {gancho}: uma frase montada do diagnóstico da empresa (ex.: \"Dei uma olhada no site de vocês e notei que o site não é adaptado para celular.\"). Sem custo de IA." },

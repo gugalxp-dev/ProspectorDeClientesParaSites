@@ -47,8 +47,16 @@ async function rascunhoAtual(leadId: string) {
   return db.contrato.findFirst({ where: { leadId, status: "rascunho" } });
 }
 
+const ATIVOS = ["pronto", "enviado", "visualizado", "aceito", "cobrado"];
+
+/** Já existe contrato enviado ou aceito: a negociação dessa venda terminou, não abre outro rascunho. */
+async function contratoAtivo(leadId: string) {
+  return db.contrato.findFirst({ where: { leadId, status: { in: ATIVOS } } });
+}
+
 /** Junta o que o cliente informou nesta mensagem ao rascunho do contrato. */
-export async function aplicarFechamento(leadId: string, f: DadosFechamento, servicos: Servico[]): Promise<DadosContrato> {
+export async function aplicarFechamento(leadId: string, f: DadosFechamento, servicos: Servico[]): Promise<DadosContrato | null> {
+  if (await contratoAtivo(leadId)) return null;
   const r = await rascunhoAtual(leadId);
   const dados: DadosContrato = r ? esquemaDadosContrato.parse(JSON.parse(r.dados)) : await dadosIniciais(leadId);
   const s = acharServico(f.servico, servicos) ?? acharServico(dados.servico, servicos);
@@ -99,6 +107,7 @@ export async function estadoFechamento(leadId: string): Promise<string> {
 
 /** A IA pediu para enviar: só envia se estiver tudo completo. Devolve o que falta, se faltar. */
 export async function enviarContratoPelaIa(leadId: string, origem?: string): Promise<{ enviado: boolean; falta: string[] }> {
+  if (await contratoAtivo(leadId)) return { enviado: false, falta: ["contrato já enviado (não envia outro)"] };
   const r = await rascunhoAtual(leadId);
   if (!r) return { enviado: false, falta: ["dados do contrato"] };
   const cfg = await obterConfig("contrato");
