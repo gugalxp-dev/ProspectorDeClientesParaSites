@@ -13,6 +13,9 @@ if (!existsSync(".env") || !existsSync("data/app.db")) {
   process.exit(1);
 }
 
+console.log("Criando/verificando administrador...");
+execSync("npx tsx scripts/criar-admin.ts", { stdio: "inherit" });
+
 const processos = [
   spawn("npx", ["next", producao ? "start" : "dev", "--hostname", "127.0.0.1", "--port", PORTA], { stdio: "inherit", shell: true }),
   spawn("npx", ["tsx", "src/worker/index.ts"], { stdio: "inherit", shell: true }),
