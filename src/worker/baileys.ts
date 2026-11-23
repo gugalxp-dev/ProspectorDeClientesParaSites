@@ -107,6 +107,40 @@ async function aoReceber(mensagens: WAMessage[]) {
         },
       ],
     });
+    // Comportamento humano: a mensagem aparece como lida (✓✓ azul) depois de alguns segundos, como uma pessoa olhando o celular.
+    const chave = m.key;
+    void obterConfig("whatsapp")
+      .then((cfg) => {
+        if (!cfg.humanizar) return;
+        setTimeout(() => void sock?.readMessages([chave]).catch(() => undefined), 1000 + Math.random() * 2500);
+      })
+      .catch(() => undefined);
+  }
+}
+
+const esperar = (ms: number) => new Promise((ok) => setTimeout(ok, ms));
+
+/**
+ * "Digitando..." antes de enviar, por um tempo proporcional ao tamanho do texto (~ uma pessoa digitando rápido),
+ * com variação aleatória e no mínimo `atrasoMinimoSeg`. Limite de 15 s para não deixar o cliente esperando demais.
+ */
+async function simularDigitacao(jid: string, texto: string) {
+  const cfg = await obterConfig("whatsapp");
+  if (!cfg.humanizar || !sock) return;
+  const minimo = cfg.atrasoMinimoSeg * 1000;
+  const total = Math.min(15_000, Math.max(minimo, texto.length * 35) + Math.random() * 1500);
+  try {
+    await sock.presenceSubscribe(jid).catch(() => undefined);
+    let restante = total;
+    while (restante > 0) {
+      await sock.sendPresenceUpdate("composing", jid); // o "digitando..." some sozinho depois de ~10 s: renova
+      const fatia = Math.min(restante, 8000);
+      await esperar(fatia);
+      restante -= fatia;
+    }
+    await sock.sendPresenceUpdate("paused", jid);
+  } catch {
+    await esperar(total); // sem presença, ao menos espera
   }
 }
 
@@ -171,9 +205,23 @@ async function enviarTexto(paraE164: string, texto: string): Promise<ResultadoEn
   // Confirma que o número tem WhatsApp e pega o JID certo (resolve o nono dígito de celulares antigos).
   const [r] = (await sock.onWhatsApp(digitos)) ?? [];
   if (!r?.exists) throw new ErroWhatsApp(`O número +${digitos} não tem WhatsApp.`, null, true);
+  await simularDigitacao(r.jid, texto);
+  if (!sock || !estado.conectado) throw new ErroWhatsApp("WhatsApp (Baileys) desconectou durante o envio.", null, false);
   const enviada = await sock.sendMessage(r.jid, { text: texto });
   if (!enviada?.key.id) throw new ErroWhatsApp("Baileys não devolveu o id da mensagem.", null, false);
   return { id: enviada.key.id };
+}
+
+/** Grava o lead na agenda do WhatsApp da empresa (sincroniza com o celular e o WhatsApp Web). */
+async function salvarContato(paraE164: string, nome: string): Promise<void> {
+  if (!sock || !estado.conectado) return;
+  const cfg = await obterConfig("whatsapp");
+  if (!cfg.salvarContato) return;
+  const digitos = paraE164.replace(/\D/g, "");
+  const [r] = (await sock.onWhatsApp(digitos)) ?? [];
+  if (!r?.exists) return;
+  const nomeLimpo = nome.trim().slice(0, 60);
+  await sock.addOrEditContact(r.jid, { fullName: nomeLimpo, firstName: nomeLimpo.split(" ")[0], saveOnPrimaryAddressbook: true });
 }
 
 const clienteLocal: ClienteWhatsApp = {
@@ -186,6 +234,7 @@ const clienteLocal: ClienteWhatsApp = {
   async estado() {
     return { ok: estado.conectado, detalhe: estado.detalhe };
   },
+  salvarContato,
   async temWhatsApp(paraE164) {
     if (!sock || !estado.conectado) return null;
     // Rajada de consultas parece robô para o WhatsApp: espaça e limita por dia (Admin > WhatsApp).
@@ -236,6 +285,12 @@ function iniciarPonte() {
         const { para, texto } = await lerCorpo(req);
         if (typeof para !== "string" || typeof texto !== "string" || !texto.trim()) return responder(res, 400, { erro: "para e texto são obrigatórios.", definitivo: true });
         return responder(res, 200, await enviarTexto(para, texto.slice(0, 4096)));
+      }
+      if (req.method === "POST" && req.url === "/contato") {
+        const { para, nome } = await lerCorpo(req);
+        if (typeof para !== "string" || typeof nome !== "string" || !nome.trim()) return responder(res, 400, { erro: "para e nome são obrigatórios.", definitivo: true });
+        await salvarContato(para, nome);
+        return responder(res, 200, { ok: true });
       }
       if (req.method === "POST" && req.url === "/sair") {
         await sock?.logout().catch(() => undefined); // dispara "loggedOut", que apaga a sessão e gera novo QR

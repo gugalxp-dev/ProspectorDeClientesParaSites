@@ -33,3 +33,19 @@ export async function chamarApi<T = unknown>(
   }
   return dados as T;
 }
+
+/**
+ * Primeiro contato manual: abre o WhatsApp (Web ou app) na conversa do lead com o texto pronto.
+ * A aba é aberta já no clique (senão o navegador bloqueia como pop-up) e recebe o link quando a API responde.
+ */
+export async function abrirContatoManual(leadId: string): Promise<void> {
+  const aba = window.open("about:blank", "_blank");
+  try {
+    const r = await chamarApi<{ link: string }>(`/api/leads/${leadId}/contato_manual`, { corpo: {} });
+    if (aba) aba.location.href = r.link;
+    else window.location.href = r.link;
+  } catch (e) {
+    aba?.close();
+    throw e;
+  }
+}

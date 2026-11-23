@@ -24,6 +24,8 @@ export interface ClienteWhatsApp {
   estado(): Promise<{ ok: boolean; detalhe: string }>;
   /** Pergunta ao WhatsApp se o número tem conta. null = não dá para saber agora (ex.: desconectado). Só no Baileys. */
   temWhatsApp?(paraE164: string): Promise<boolean | null>;
+  /** Salva o contato na agenda do WhatsApp da empresa (Baileys). */
+  salvarContato?(paraE164: string, nome: string): Promise<void>;
 }
 
 /** Erro devolvido pela Meta. `definitivo` = não adianta tentar de novo. */
@@ -200,6 +202,9 @@ class ClienteBaileysRemoto implements ClienteWhatsApp {
   enviarTemplate(para: string, nome: string, _idioma: string, _parametros: string[], textoAlternativo?: string) {
     if (!textoAlternativo) throw new ErroWhatsApp(`Baileys não tem templates: falta o texto para "${nome}".`, null, true);
     return this.enviarTexto(para, textoAlternativo);
+  }
+  async salvarContato(para: string, nome: string) {
+    await chamarPonte<{ ok: true }>("/contato", { para, nome });
   }
   async estado() {
     try {

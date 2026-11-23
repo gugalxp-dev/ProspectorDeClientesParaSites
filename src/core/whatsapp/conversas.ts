@@ -293,10 +293,60 @@ export async function iniciarContato(leadId: string, usuarioId: string) {
   if (conversa.status !== "ativa") {
     await db.conversa.update({ where: { id: conversa.id }, data: { status: "ativa", agenteAtivo: !lead.automacaoPausada } });
   }
-  const msg = await enviarMensagem({ conversaId: conversa.id, autor: "humano", usuarioId, template: { nome, idioma: cfg.idiomaTemplate, parametros: [], texto } });
+  const parametros: string[] = [];
+  await salvarComoContato(tel, lead.nome);
+  const msg = await enviarMensagem({ conversaId: conversa.id, autor: "humano", usuarioId, template: { nome, idioma: cfg.idiomaTemplate, parametros, texto } });
   await moverEtapa(leadId, "aguardando_resposta", "Contato iniciado por template; aguardando resposta.", usuarioId);
   await db.interacaoLead.create({ data: { leadId, tipo: "contato", descricao: `Primeiro contato enviado (template ${nome}).`, usuarioId } });
   return { conversa, mensagem: msg };
+}
+
+/** Texto do primeiro contato (Admin > Agente), com nome, agente, empresa, gancho do diagnóstico e site. */
+async function textoPrimeiroContato(lead: Awaited<ReturnType<typeof db.lead.findUniqueOrThrow>>): Promise<string> {
+  const cfg = await obterConfig("agente");
+  return cfg.mensagemPrimeiroContato
+    .replaceAll("{nome}", lead.nome)
+    .replaceAll("{agente}", cfg.nomeAgente || "a equipe")
+    .replaceAll("{empresa}", cfg.nomeEmpresa || "nossa empresa")
+    .replaceAll("{gancho}", ganchoPrimeiroContato(lead))
+    .replaceAll("{site}", cfg.siteEmpresa)
+    .replace(/\s{2,}/g, " ")
+    .trim();
+}
+
+/**
+ * Primeiro contato MANUAL (protege o número no Baileys): você envia pelo WhatsApp Web/celular oficial, no seu ritmo,
+ * e o sistema só registra. Quando o cliente responder, o Baileys recebe e o agente assume.
+ * Registra a conversa e a mensagem no histórico (para o agente saber o que foi dito) e devolve o link wa.me
+ * com o texto pronto. O WhatsApp Web precisa estar no MESMO número conectado ao Baileys.
+ */
+export async function prepararContatoManual(leadId: string, usuarioId: string): Promise<{ link: string; texto: string }> {
+  let lead = await db.lead.findUniqueOrThrow({ where: { id: leadId } });
+  if (lead.contatoStatus !== "autorizado") {
+    await registrarConsentimento(
+      leadId,
+      { origem: "Telefone comercial público da empresa (encontrado na prospecção). Contato B2B, enviado manualmente.", baseLegal: "legitimo_interesse" },
+      usuarioId,
+    );
+    lead = await db.lead.findUniqueOrThrow({ where: { id: leadId } });
+  }
+  const consentimento = await db.consentimento.findFirst({ where: { leadId, tipo: "opt_in" }, orderBy: { criadoEm: "desc" } });
+  const tel = consentimento?.telefoneE164 ?? telefoneDoLead(lead);
+  if (!tel) throw new EnvioBloqueado("Lead sem número de WhatsApp autorizado.");
+  if (lead.naoContatar || (await estaSuprimido(tel))) throw new EnvioBloqueado("Este contato pediu para não receber mensagens.");
+  const texto = await textoPrimeiroContato(lead);
+  if (!texto) throw new EnvioBloqueado("Configure o texto do primeiro contato em Admin > Agente.");
+  await salvarComoContato(tel, lead.nome);
+
+  const conversa = await obterConversa(tel, leadId);
+  await db.conversa.update({ where: { id: conversa.id }, data: { status: "ativa", agenteAtivo: !lead.automacaoPausada, ultimaSaidaEm: new Date(), saidasSemResposta: 1 } });
+  await db.mensagem.create({ data: { conversaId: conversa.id, direcao: "saida", autor: "humano", tipo: "texto", conteudo: texto, status: "manual" } });
+  await db.lead.update({ where: { id: leadId }, data: { ultimaInteracaoEm: new Date() } });
+  await moverEtapa(leadId, "aguardando_resposta", "Primeiro contato enviado manualmente pelo WhatsApp; aguardando resposta.", usuarioId);
+  await db.interacaoLead.create({ data: { leadId, tipo: "contato", descricao: "Primeiro contato aberto no WhatsApp para envio manual.", usuarioId } });
+  await auditar(usuarioId, "contato_manual", leadId);
+  await emitir("mensagem.nova", { conversaId: conversa.id, leadId });
+  return { link: `https://wa.me/${tel.replace(/\D/g, "")}?text=${encodeURIComponent(texto)}`, texto };
 }
 
 // ───────────── Transferência para humano ─────────────
@@ -425,4 +475,19 @@ export async function processarStatus(s: StatusWhatsApp): Promise<void> {
   if (!r.count) return;
   if (novo === "falhou") await registrarLog("erro", "whatsapp", `Mensagem não entregue: ${s.erro ?? "sem detalhe"}`);
   await emitir("mensagem.status", { conversaId: m.conversaId });
+}
+
+/** Primeiro contato é manual quando o canal é o Baileys e a opção está ligada (Admin > WhatsApp). */
+export async function contatoManualAtivo(): Promise<boolean> {
+  return (await modoWhatsApp()) === "baileys" && (await obterConfig("whatsapp")).primeiroContatoManual;
+}
+
+/** Salva o lead na agenda do WhatsApp da empresa antes do primeiro contato. Falha não impede o contato. */
+async function salvarComoContato(e164: string, nome: string): Promise<void> {
+  try {
+    const cliente = await clienteWhatsApp();
+    await cliente.salvarContato?.(e164, nome);
+  } catch {
+    // opcional: sem conexão ou sem suporte, segue sem salvar
+  }
 }

@@ -4,6 +4,7 @@ import { IndicadoresPendencias } from "@/components/IndicadoresPendencias";
 import { AprovarContatos, EnviosAgendados, MarcarCobrado } from "@/components/Pendencias";
 import { Score, Titulo, dataHora } from "@/components/ui";
 import { listarPendencias } from "@/core/pendencias";
+import { contatoManualAtivo } from "@/core/whatsapp/conversas";
 import { exigirUsuario } from "@/lib/auth";
 
 export default async function Pendencias() {
@@ -88,7 +89,7 @@ export default async function Pendencias() {
 
       <section id="aprovar" className="cartao p-4">
         <h2 className="mb-2 font-medium">Aprovar primeiro contato</h2>
-        <AprovarContatos leads={p.aprovar} etapaPerdidoId={p.etapaPerdidoId} />
+        <AprovarContatos leads={p.aprovar} etapaPerdidoId={p.etapaPerdidoId} manual={await contatoManualAtivo()} />
       </section>
 
       <section id="agendados" className="cartao p-4">

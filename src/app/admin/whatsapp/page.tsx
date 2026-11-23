@@ -50,6 +50,10 @@ export default async function AdminWhatsapp() {
         campos={[
           { caminho: "limiteDiarioMensagens", rotulo: "Máx. mensagens enviadas por dia (todas)", tipo: "numero", min: 0, max: 10000 },
           { caminho: "limiteDiarioTemplates", rotulo: "Máx. templates (primeiros contatos) por dia", tipo: "numero", min: 0, max: 1000 },
+          { caminho: "primeiroContatoManual", rotulo: "Primeiro contato manual (Baileys)", tipo: "booleano", ajuda: "Você envia a primeira mensagem pelo WhatsApp Web, que abre já com o texto pronto; quando o cliente responder, o agente assume. É o jeito mais seguro de não ter o número restrito." },
+          { caminho: "humanizar", rotulo: "Comportamento humano nas respostas", tipo: "booleano", ajuda: "Marca a mensagem do cliente como lida, mostra \"digitando...\" e espera um tempo proporcional ao tamanho da resposta." },
+          { caminho: "atrasoMinimoSeg", rotulo: "Espera mínima antes de responder (segundos)", tipo: "numero", min: 0, max: 60 },
+          { caminho: "salvarContato", rotulo: "Salvar o lead como contato no WhatsApp da empresa", tipo: "booleano", ajuda: "Grava o nome do lead na agenda do número da empresa antes do primeiro contato (aparece com nome no WhatsApp Web)." },
           { caminho: "envioIntervaloMinMin", rotulo: "Fila de primeiros contatos: intervalo mínimo (minutos)", tipo: "numero", min: 1, max: 120 },
           { caminho: "envioIntervaloMaxMin", rotulo: "Fila de primeiros contatos: intervalo máximo (minutos)", tipo: "numero", min: 1, max: 240, ajuda: "Cada envio sai num tempo aleatório entre o mínimo e o máximo depois do anterior." },
           { caminho: "horaInicio", rotulo: "Enviar a partir de (hora)", tipo: "numero", min: 0, max: 23 },

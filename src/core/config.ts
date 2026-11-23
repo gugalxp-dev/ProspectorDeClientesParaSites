@@ -163,6 +163,14 @@ export const esquemaWhatsapp = z.object({
 
   // ── Proteção do número (Baileys) ──
   /** Pergunta ao WhatsApp se um número tem conta (fixos e telefones da busca por IA). Rajadas disso parecem robô. */
+  /** Baileys: o primeiro contato é enviado por você no WhatsApp Web (o sistema só abre a conversa com o texto pronto e registra). */
+  primeiroContatoManual: z.boolean().default(true),
+  /** Comportamento humano (Baileys): marca como lida, mostra "digitando..." e espera antes de responder. */
+  humanizar: z.boolean().default(true),
+  /** Espera mínima antes de responder (segundos). O tempo cresce com o tamanho da resposta, com variação aleatória. */
+  atrasoMinimoSeg: z.number().int().min(0).max(60).default(3),
+  /** Salva o lead como contato na agenda do WhatsApp da empresa antes do primeiro contato. */
+  salvarContato: z.boolean().default(true),
   verificarNumeros: z.boolean().default(true),
   verificacoesPorDia: z.number().int().min(0).max(500).default(40),
   intervaloVerificacaoSeg: z.number().int().min(3).max(120).default(10),

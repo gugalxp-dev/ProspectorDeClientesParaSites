@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Check, Send, X } from "lucide-react";
-import { chamarApi } from "./api";
+import { abrirContatoManual, chamarApi } from "./api";
 import { Score, SeloPresenca, telefoneFmt } from "./ui";
 
 interface LeadAprovar {
@@ -20,7 +20,7 @@ interface LeadAprovar {
 }
 
 /** Fila de leads esperando você aprovar o primeiro contato. Aprovar = agenda o envio (fila espaçada, horário comercial). */
-export function AprovarContatos({ leads, etapaPerdidoId }: { leads: LeadAprovar[]; etapaPerdidoId: string | null }) {
+export function AprovarContatos({ leads, etapaPerdidoId, manual = false }: { leads: LeadAprovar[]; etapaPerdidoId: string | null; manual?: boolean }) {
   const router = useRouter();
   const [feitos, setFeitos] = useState<Record<string, "aprovado" | "descartado">>({});
   const [horarios, setHorarios] = useState<Record<string, string>>({});
@@ -30,6 +30,13 @@ export function AprovarContatos({ leads, etapaPerdidoId }: { leads: LeadAprovar[
   async function aprovar(id: string): Promise<boolean> {
     setOcupado(id);
     try {
+      if (manual) {
+        // Baileys protegido: você envia pelo WhatsApp Web (abre com o texto pronto); o agente assume na resposta.
+        await abrirContatoManual(id);
+        setFeitos((f) => ({ ...f, [id]: "aprovado" }));
+        setHorarios((h) => ({ ...h, [id]: "aberto no WhatsApp" }));
+        return true;
+      }
       const r = await chamarApi<{ quando: string }>(`/api/leads/${id}/agendar`, { corpo: {} });
       setFeitos((f) => ({ ...f, [id]: "aprovado" }));
       setHorarios((h) => ({ ...h, [id]: new Date(r.quando).toLocaleString("pt-BR", { weekday: "short", hour: "2-digit", minute: "2-digit" }) }));
@@ -74,8 +81,8 @@ export function AprovarContatos({ leads, etapaPerdidoId }: { leads: LeadAprovar[
   return (
     <div className="space-y-2">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <span className="text-xs text-slate-500">Aprovar coloca o primeiro contato na fila: sai um por vez, com intervalo aleatório e só no horário comercial (Admin &gt; WhatsApp). Os limites diários continuam valendo.</span>
-        {restantes > 1 && (
+        <span className="text-xs text-slate-500">{manual ? "Primeiro contato manual: abre o WhatsApp Web com a mensagem pronta para você enviar (protege o número). Quando o cliente responder, o agente assume." : null}{manual ? null : "Aprovar coloca o primeiro contato na fila: sai um por vez, com intervalo aleatório e só no horário comercial (Admin &gt; WhatsApp). Os limites diários continuam valendo."}</span>
+        {restantes > 1 && !manual && (
           <button className="botao" disabled={!!ocupado} onClick={aprovarTodos}>
             <Check className="size-4" /> Aprovar todos ({restantes})
           </button>
@@ -96,12 +103,12 @@ export function AprovarContatos({ leads, etapaPerdidoId }: { leads: LeadAprovar[
             </div>
             {feitos[l.id] ? (
               <span className={`selo ${feitos[l.id] === "aprovado" ? "bg-emerald-100 text-emerald-800" : "bg-slate-100 text-slate-600"}`}>
-                {feitos[l.id] === "aprovado" ? `Agendado: ${horarios[l.id] ?? ""}` : "Descartado"}
+                {feitos[l.id] === "aprovado" ? (manual ? "Aberto no WhatsApp" : `Agendado: ${horarios[l.id] ?? ""}`) : "Descartado"}
               </span>
             ) : (
               <div className="flex gap-2">
                 <button className="botao" disabled={!!ocupado} onClick={() => aprovar(l.id)}>
-                  <Send className="size-4" /> {ocupado === l.id ? "Agendando..." : "Aprovar"}
+                  <Send className="size-4" /> {ocupado === l.id ? (manual ? "Abrindo..." : "Agendando...") : manual ? "Abrir no WhatsApp" : "Aprovar"}
                 </button>
                 {etapaPerdidoId && (
                   <button className="botao-sec" disabled={!!ocupado} onClick={() => descartar(l)} title="Mover para Perdido">

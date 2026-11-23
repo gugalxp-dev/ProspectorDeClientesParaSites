@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { RefreshCw, Send, ShieldCheck, ShieldOff, Trash2 } from "lucide-react";
-import { chamarApi } from "./api";
+import { abrirContatoManual, chamarApi } from "./api";
 import { dataHora } from "./ui";
 
 function useAcao() {
@@ -48,7 +48,7 @@ interface Consentimento {
   criadoEm: string;
 }
 
-export function AutorizacaoContato(p: { id: string; contatoStatus: string; telefone: string | null; temConversa: boolean; consentimentos: Consentimento[] }) {
+export function AutorizacaoContato(p: { id: string; contatoStatus: string; telefone: string | null; temConversa: boolean; consentimentos: Consentimento[]; manual?: boolean }) {
   const a = useAcao();
   const [modo, setModo] = useState<"nada" | "optin" | "optout">("nada");
 
@@ -68,9 +68,15 @@ export function AutorizacaoContato(p: { id: string; contatoStatus: string; telef
               <ShieldCheck className="size-4" /> Registrar autorização
             </button>
           )}
-          <button className="botao" disabled={a.ocupado} onClick={() => a.rodar(() => chamarApi(`/api/leads/${p.id}/contato`, { corpo: {} }), "Primeiro contato enviado.")}>
-            <Send className="size-4" /> {p.temConversa ? "Enviar primeiro contato de novo" : "Iniciar contato"}
-          </button>
+          {p.manual ? (
+            <button className="botao" disabled={a.ocupado} onClick={() => a.rodar(() => abrirContatoManual(p.id), "WhatsApp aberto com a mensagem pronta: é só enviar. Quando o cliente responder, o agente assume.")}>
+              <Send className="size-4" /> {p.temConversa ? "Abrir no WhatsApp de novo" : "Iniciar contato no WhatsApp"}
+            </button>
+          ) : (
+            <button className="botao" disabled={a.ocupado} onClick={() => a.rodar(() => chamarApi(`/api/leads/${p.id}/contato`, { corpo: {} }), "Primeiro contato enviado.")}>
+              <Send className="size-4" /> {p.temConversa ? "Enviar primeiro contato de novo" : "Iniciar contato"}
+            </button>
+          )}
           <button className="botao-perigo" onClick={() => setModo("optout")}>
             <ShieldOff className="size-4" /> Registrar opt-out
           </button>

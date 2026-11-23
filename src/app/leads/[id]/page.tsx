@@ -15,7 +15,7 @@ import { db } from "@/core/db";
 import type { AvaliacaoSite } from "@/core/prospeccao/avaliacaoSite";
 import type { Qualificacao } from "@/core/prospeccao/qualificacao";
 import { modoWhatsApp } from "@/core/whatsapp/cliente";
-import { dentroDaJanela } from "@/core/whatsapp/conversas";
+import { contatoManualAtivo, dentroDaJanela } from "@/core/whatsapp/conversas";
 import { exigirUsuario } from "@/lib/auth";
 
 const ROTULO_CAMPO: Record<string, string> = {
@@ -238,6 +238,7 @@ export default async function Lead({ params, searchParams }: { params: Promise<{
             contatoStatus={l.contatoStatus}
             telefone={l.whatsappE164 ?? (l.ehCelular ? l.telefoneE164 : null)}
             temConversa={!!l.conversa}
+            manual={await contatoManualAtivo()}
             consentimentos={l.consentimentos.map((c) => ({ id: c.id, tipo: c.tipo, origem: c.origem, baseLegal: c.baseLegal, registradoPor: c.registradoPor, criadoEm: c.criadoEm.toISOString() }))}
           />
 

@@ -30,8 +30,8 @@ export function proxy(req: NextRequest) {
     "base-uri 'self'",
     "form-action 'self'",
     "frame-ancestors 'none'",
-    // Só quando o sistema roda em HTTPS público; em http://127.0.0.1 quebraria o carregamento.
-    ...(process.env.APP_URL?.startsWith("https://") ? ["upgrade-insecure-requests"] : []),
+    // Só quando o acesso vem pelo endereço HTTPS público (APP_URL). Abrindo por http://localhost, quebraria o painel.
+    ...(acessoPeloEnderecoPublico(req) ? ["upgrade-insecure-requests"] : []),
   ].join("; ");
 
   const headers = new Headers(req.headers);
@@ -53,3 +53,15 @@ export const config = {
     },
   ],
 };
+
+/** A requisição chegou pelo endereço público HTTPS configurado em APP_URL (túnel/servidor), e não por localhost. */
+function acessoPeloEnderecoPublico(req: NextRequest): boolean {
+  const publico = process.env.APP_URL;
+  if (!publico?.startsWith("https://")) return false;
+  try {
+    const host = req.headers.get("x-forwarded-host") ?? req.headers.get("host") ?? "";
+    return new URL(publico).host === host;
+  } catch {
+    return false;
+  }
+}
