@@ -23,7 +23,8 @@
     "worker": "tsx src/worker/index.ts",
     "usuario": "tsx scripts/usuario.ts",
     "seed": "tsx scripts/seed.ts",
-    "refiltrar": "tsx scripts/refiltrar.ts"
+    "refiltrar": "tsx scripts/refiltrar.ts",
+    "criar-admin": "tsx scripts/criar-admin.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.12.0",
