@@ -346,9 +346,7 @@ export async function prepararContatoManual(leadId: string, usuarioId: string): 
   await db.interacaoLead.create({ data: { leadId, tipo: "contato", descricao: "Primeiro contato aberto no WhatsApp para envio manual.", usuarioId } });
   await auditar(usuarioId, "contato_manual", leadId);
   await emitir("mensagem.nova", { conversaId: conversa.id, leadId });
-  
-  const telefoneTeste = "5513997552341";
-  return {   link: `https://wa.me/${telefoneTeste}?text=${encodeURIComponent(texto)}`, texto };
+  return { link: `https://wa.me/${tel.replace(/\D/g, "")}?text=${encodeURIComponent(texto)}`, texto };
 }
 
 // ───────────── Transferência para humano ─────────────
